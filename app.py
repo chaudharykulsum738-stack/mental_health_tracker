@@ -162,8 +162,38 @@ if "hobby_form" not in st.session_state:
         "satisfactionLevel": 5,
         "notes": "",
     }
+if "hobby_date" not in st.session_state:
+    st.session_state.hobby_date = st.session_state.hobby_form.get("date", date.today())
+if "hobby_name" not in st.session_state:
+    st.session_state.hobby_name = st.session_state.hobby_form.get("hobbyName", "")
+if "hobby_duration" not in st.session_state:
+    st.session_state.hobby_duration = int(st.session_state.hobby_form.get("durationMinutes", 0) or 0)
+if "hobby_satisfaction" not in st.session_state:
+    st.session_state.hobby_satisfaction = int(st.session_state.hobby_form.get("satisfactionLevel", 5) or 5)
+if "hobby_notes" not in st.session_state:
+    st.session_state.hobby_notes = st.session_state.hobby_form.get("notes", "")
 if "affirm_index" not in st.session_state:
     st.session_state.affirm_index = 0
+
+def set_hobby_form_state(form):
+    st.session_state.hobby_form = form
+    st.session_state.hobby_date = form.get("date", date.today())
+    st.session_state.hobby_name = form.get("hobbyName", "")
+    st.session_state.hobby_duration = int(form.get("durationMinutes", 0) or 0)
+    st.session_state.hobby_satisfaction = int(form.get("satisfactionLevel", 5) or 5)
+    st.session_state.hobby_notes = form.get("notes", "")
+
+def reset_hobby_form_state():
+    st.session_state.hobby_editing_id = None
+    set_hobby_form_state(
+        {
+            "date": date.today(),
+            "hobbyName": "",
+            "durationMinutes": 0,
+            "satisfactionLevel": 5,
+            "notes": "",
+        }
+    )
 
 entries = load_entries()
 hobbies = load_hobbies()
@@ -411,21 +441,28 @@ with tab4:
     st.subheader("Hobby Tracker")
     hc1, hc2 = st.columns(2)
     with hc1:
-        st.session_state.hobby_form["date"] = st.date_input("Date", st.session_state.hobby_form.get("date", date.today()), key="hobby_date")
-        st.session_state.hobby_form["hobbyName"] = st.text_input("Hobby", st.session_state.hobby_form.get("hobbyName", ""), key="hobby_name")
-        st.session_state.hobby_form["durationMinutes"] = st.number_input("Duration (minutes)", min_value=0, step=1, value=int(st.session_state.hobby_form.get("durationMinutes", 0)), key="hobby_duration")
-        st.session_state.hobby_form["satisfactionLevel"] = st.slider("Satisfaction (1–10)", min_value=1, max_value=10, value=int(st.session_state.hobby_form.get("satisfactionLevel", 5)), key="hobby_satisfaction")
-        st.session_state.hobby_form["notes"] = st.text_area("Notes", value=st.session_state.hobby_form.get("notes", ""), height=100, key="hobby_notes")
+        hobby_date = st.date_input("Date", key="hobby_date")
+        hobby_name = st.text_input("Hobby", key="hobby_name")
+        hobby_duration = st.number_input("Duration (minutes)", min_value=0, step=1, key="hobby_duration")
+        hobby_satisfaction = st.slider("Satisfaction (1–10)", min_value=1, max_value=10, key="hobby_satisfaction")
+        hobby_notes = st.text_area("Notes", height=100, key="hobby_notes")
+        st.session_state.hobby_form = {
+            "date": hobby_date,
+            "hobbyName": hobby_name,
+            "durationMinutes": hobby_duration,
+            "satisfactionLevel": hobby_satisfaction,
+            "notes": hobby_notes,
+        }
         hcols = st.columns(3)
         h_save_label = "Update Hobby" if st.session_state.hobby_editing_id else "Save Hobby"
         if hcols[0].button(h_save_label, key="hobby_save_btn"):
             payload = {
                 "id": st.session_state.hobby_editing_id or str(uuid4()),
-                "date": to_iso(st.session_state.hobby_form["date"]),
-                "hobbyName": st.session_state.hobby_form["hobbyName"].strip(),
-                "durationMinutes": int(st.session_state.hobby_form["durationMinutes"]),
-                "satisfactionLevel": int(st.session_state.hobby_form["satisfactionLevel"]),
-                "notes": st.session_state.hobby_form["notes"].strip(),
+                "date": to_iso(hobby_date),
+                "hobbyName": (hobby_name or "").strip(),
+                "durationMinutes": int(hobby_duration or 0),
+                "satisfactionLevel": int(hobby_satisfaction or 0),
+                "notes": (hobby_notes or "").strip(),
             }
             if not payload["date"] or not payload["hobbyName"]:
                 st.error("Date and Hobby are required")
@@ -441,36 +478,15 @@ with tab4:
                     hobbies.append(payload)
                     st.success("Hobby saved")
                 save_hobbies(hobbies)
-                st.session_state.hobby_editing_id = None
-                st.session_state.hobby_form = {
-                    "date": date.today(),
-                    "hobbyName": "",
-                    "durationMinutes": 0,
-                    "satisfactionLevel": 5,
-                    "notes": "",
-                }
+                reset_hobby_form_state()
                 st.rerun()
         if hcols[1].button("Reset", key="hobby_reset_btn"):
-            st.session_state.hobby_editing_id = None
-            st.session_state.hobby_form = {
-                "date": date.today(),
-                "hobbyName": "",
-                "durationMinutes": 0,
-                "satisfactionLevel": 5,
-                "notes": "",
-            }
+            reset_hobby_form_state()
             st.rerun()
         if hcols[2].button("Clear All", key="hobby_clear_btn"):
             hobbies = []
             save_hobbies(hobbies)
-            st.session_state.hobby_editing_id = None
-            st.session_state.hobby_form = {
-                "date": date.today(),
-                "hobbyName": "",
-                "durationMinutes": 0,
-                "satisfactionLevel": 5,
-                "notes": "",
-            }
+            reset_hobby_form_state()
             st.success("Hobby history cleared")
             st.rerun()
     with hc2:
@@ -497,26 +513,21 @@ with tab4:
                 hc_edit, hc_del = st.columns(2)
                 if hc_edit.button("Edit", key=f"h_edit_{h['id']}"):
                     st.session_state.hobby_editing_id = h["id"]
-                    st.session_state.hobby_form = {
+                    set_hobby_form_state(
+                        {
                         "date": datetime.fromisoformat(h.get("date", date.today().isoformat())).date(),
                         "hobbyName": h.get("hobbyName", ""),
                         "durationMinutes": int(h.get("durationMinutes", 0) or 0),
                         "satisfactionLevel": int(h.get("satisfactionLevel", 5) or 5),
                         "notes": h.get("notes", ""),
-                    }
+                        }
+                    )
                     st.rerun()
                 if hc_del.button("Delete", key=f"h_del_{h['id']}"):
                     hobbies = [x for x in hobbies if x["id"] != h["id"]]
                     save_hobbies(hobbies)
                     if st.session_state.hobby_editing_id == h["id"]:
-                        st.session_state.hobby_editing_id = None
-                        st.session_state.hobby_form = {
-                            "date": date.today(),
-                            "hobbyName": "",
-                            "durationMinutes": 0,
-                            "satisfactionLevel": 5,
-                            "notes": "",
-                        }
+                        reset_hobby_form_state()
                     st.success("Hobby deleted")
                     st.rerun()
 
@@ -593,4 +604,3 @@ with tab5:
     if ac3.button("Next"):
         st.session_state.affirm_index = (st.session_state.affirm_index + 1) % len(affirmations)
         st.rerun()
-
