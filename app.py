@@ -561,7 +561,7 @@ with tab5:
     st.write(
         f"""
         <div style="
-            border:1px solid #1f2937;background:#8aedf2;border-radius:12px;
+            border:1px solid #1f2937;background:#FFB6C1;border-radius:12px;
             padding:16px;margin:10px 0;color:#e5e7eb;text-align:center;font-size:20px;">
             {affirmations[st.session_state.affirm_index]}
         </div>
