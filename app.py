@@ -172,16 +172,22 @@ if "hobby_satisfaction" not in st.session_state:
     st.session_state.hobby_satisfaction = int(st.session_state.hobby_form.get("satisfactionLevel", 5) or 5)
 if "hobby_notes" not in st.session_state:
     st.session_state.hobby_notes = st.session_state.hobby_form.get("notes", "")
+if "hobby_form_needs_sync" not in st.session_state:
+    st.session_state.hobby_form_needs_sync = False
 if "affirm_index" not in st.session_state:
     st.session_state.affirm_index = 0
 
-def set_hobby_form_state(form):
-    st.session_state.hobby_form = form
+def sync_hobby_widgets_from_form():
+    form = st.session_state.hobby_form or {}
     st.session_state.hobby_date = form.get("date", date.today())
     st.session_state.hobby_name = form.get("hobbyName", "")
     st.session_state.hobby_duration = int(form.get("durationMinutes", 0) or 0)
     st.session_state.hobby_satisfaction = int(form.get("satisfactionLevel", 5) or 5)
     st.session_state.hobby_notes = form.get("notes", "")
+
+def set_hobby_form_state(form):
+    st.session_state.hobby_form = form
+    st.session_state.hobby_form_needs_sync = True
 
 def reset_hobby_form_state():
     st.session_state.hobby_editing_id = None
@@ -441,6 +447,9 @@ with tab4:
     st.subheader("Hobby Tracker")
     hc1, hc2 = st.columns(2)
     with hc1:
+        if st.session_state.hobby_form_needs_sync:
+            sync_hobby_widgets_from_form()
+            st.session_state.hobby_form_needs_sync = False
         hobby_date = st.date_input("Date", key="hobby_date")
         hobby_name = st.text_input("Hobby", key="hobby_name")
         hobby_duration = st.number_input("Duration (minutes)", min_value=0, step=1, key="hobby_duration")
@@ -515,11 +524,11 @@ with tab4:
                     st.session_state.hobby_editing_id = h["id"]
                     set_hobby_form_state(
                         {
-                        "date": datetime.fromisoformat(h.get("date", date.today().isoformat())).date(),
-                        "hobbyName": h.get("hobbyName", ""),
-                        "durationMinutes": int(h.get("durationMinutes", 0) or 0),
-                        "satisfactionLevel": int(h.get("satisfactionLevel", 5) or 5),
-                        "notes": h.get("notes", ""),
+                            "date": datetime.fromisoformat(h.get("date", date.today().isoformat())).date(),
+                            "hobbyName": h.get("hobbyName", ""),
+                            "durationMinutes": int(h.get("durationMinutes", 0) or 0),
+                            "satisfactionLevel": int(h.get("satisfactionLevel", 5) or 5),
+                            "notes": h.get("notes", ""),
                         }
                     )
                     st.rerun()
@@ -604,3 +613,4 @@ with tab5:
     if ac3.button("Next"):
         st.session_state.affirm_index = (st.session_state.affirm_index + 1) % len(affirmations)
         st.rerun()
+
