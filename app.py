@@ -104,26 +104,43 @@ def default_values():
         "notes": "",
     }
 
-st.set_page_config(page_title="Mental Health Tracker", page_icon="🧠", layout="centered")
+st.set_page_config(page_title="Mental Health Tracker", page_icon="🧠", layout="wide")
 st.markdown(
     """
     <style>
-    html, body { background: linear-gradient(160deg, #0f172a 0%, #0b1020 100%); }
-    .banner { text-align:center; padding: 18px 12px; margin: 0 0 10px; font-size: 28px; font-weight: 700; color: #e5e7eb; background: linear-gradient(90deg,#0ea5e9,#22c55e); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .stApp {
+      background: radial-gradient(1200px 800px at 20% -10%, rgba(59,130,246,0.12), transparent 60%),
+                  radial-gradient(1200px 800px at 90% 10%, rgba(14,165,233,0.14), transparent 55%),
+                  linear-gradient(180deg, #ffffff 0%, #f5f8ff 100%);
+    }
+    .block-container { padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1100px; }
+    .banner { text-align:center; padding: 12px 12px; margin: 0 0 8px; font-size: 30px; font-weight: 800; letter-spacing:-0.02em; background: linear-gradient(90deg,#3b82f6,#0ea5e9); -webkit-background-clip: text; background-clip: text; color: transparent; }
     .metric-row { margin-bottom: 8px; }
-    .badge { display:inline-block; padding: 4px 10px; border-radius: 999px; border: 1px solid #1f2937; font-weight:600; }
-    .badge.happy { color:#22c55e; border-color:#14532d; }
-    .badge.neutral { color:#93c5fd; border-color:#1e3a8a; }
-    .badge.sad { color:#60a5fa; border-color:#1d4ed8; }
-    .badge.stressed { color:#fbbf24; border-color:#78350f; }
-    .badge.anxious { color:#f87171; border-color:#7f1d1d; }
-    .entry-card { border: 1px solid #1f2937; background: #0b1020; border-radius: 12px; padding: 12px; margin: 6px 0; }
+    .badge { display:inline-flex; align-items:center; gap:6px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(226,232,240,1); font-weight:700; font-size:12px; background: rgba(255,255,255,0.85); }
+    .badge.happy { color:#16a34a; border-color:#bbf7d0; }
+    .badge.neutral { color:#2563eb; border-color:#bfdbfe; }
+    .badge.sad { color:#60a5fa; border-color:#bfdbfe; }
+    .badge.stressed { color:#f59e0b; border-color:#fde68a; }
+    .badge.anxious { color:#ef4444; border-color:#fecaca; }
+    .entry-card { border: 1px solid rgba(226,232,240,1); background: rgba(248,250,252,0.9); border-radius: 14px; padding: 12px; margin: 10px 0; box-shadow: 0 10px 28px rgba(15,23,42,0.08); }
     .entry-top { display:flex; align-items:center; justify-content:space-between; }
     .entry-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 8px; }
-    .entry-kv { color:#9ca3af; font-size: 13px; }
-    .entry-kv b { color:#e5e7eb; }
-    div.stButton>button { border-radius: 10px; border: 1px solid #1f2937; background:#0b1020; color:#e5e7eb; }
-    div.stButton>button:hover { border-color:#06b6d4; }
+    .entry-kv { color:#475569; font-size: 13px; }
+    .entry-kv b { color:#0f172a; }
+
+    [data-testid="stMetric"] { background: rgba(248,250,252,0.9); border: 1px solid rgba(226,232,240,1); border-radius: 14px; padding: 12px 14px; box-shadow: 0 10px 28px rgba(15,23,42,0.08); }
+    [data-testid="stMetricValue"] { color:#0f172a; }
+    [data-testid="stMetricLabel"] { color:#475569; }
+
+    div.stButton>button { border-radius: 12px; border: 1px solid rgba(226,232,240,1); background: rgba(255,255,255,0.92); color:#0f172a; }
+    div.stButton>button:hover { border-color: rgba(59,130,246,0.55); box-shadow: 0 10px 28px rgba(59,130,246,0.14); transform: translateY(-1px); }
+    div.stButton>button:active { transform: translateY(1px); }
+
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; padding: 8px; border-radius: 16px; background: rgba(255,255,255,0.65); border: 1px solid rgba(226,232,240,1); }
+    .stTabs [data-baseweb="tab"] { border-radius: 999px; padding: 8px 12px; background: rgba(255,255,255,0.8); border: 1px solid rgba(226,232,240,1); }
+    .stTabs [aria-selected="true"] { background: linear-gradient(90deg, rgba(234,242,255,1) 0%, rgba(224,242,254,1) 100%); border-color: rgba(59,130,246,0.45); }
+
+    .affirm-card { border: 1px solid rgba(226,232,240,1); background: linear-gradient(135deg, rgba(234,242,255,1) 0%, rgba(240,249,255,1) 100%); border-radius: 18px; padding: 18px; margin: 10px 0; text-align:center; font-size: 20px; color:#0b132b; box-shadow: 0 10px 28px rgba(59,130,246,0.14); }
     </style>
     """,
     unsafe_allow_html=True,
@@ -560,9 +577,7 @@ with tab5:
     st.info("Use the buttons to navigate affirmations")
     st.write(
         f"""
-        <div style="
-            border:1px solid #1f2937;background:#FFB6C1;border-radius:12px;
-            padding:16px;margin:10px 0;color:#e5e7eb;text-align:center;font-size:20px;">
+        <div class="affirm-card">
             {affirmations[st.session_state.affirm_index]}
         </div>
         """,
@@ -578,3 +593,4 @@ with tab5:
     if ac3.button("Next"):
         st.session_state.affirm_index = (st.session_state.affirm_index + 1) % len(affirmations)
         st.rerun()
+
