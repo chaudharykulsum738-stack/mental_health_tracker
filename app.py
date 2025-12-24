@@ -450,6 +450,16 @@ with tab4:
                     "notes": "",
                 }
                 st.rerun()
+        if hcols[1].button("Reset", key="hobby_reset_btn"):
+            st.session_state.hobby_editing_id = None
+            st.session_state.hobby_form = {
+                "date": date.today(),
+                "hobbyName": "",
+                "durationMinutes": 0,
+                "satisfactionLevel": 5,
+                "notes": "",
+            }
+            st.rerun()
         if hcols[2].button("Clear All", key="hobby_clear_btn"):
             hobbies = []
             save_hobbies(hobbies)
