@@ -373,7 +373,7 @@ with tab2:
             "Stress": e.get("stressLevel", ""),
             "Anxiety": e.get("anxietyLevel", ""),
             "Meditation": e.get("meditationMinutes", ""),
-            "Screen time": e.get("Screen time", ""),
+            "Screen time": e.get("Screentime", ""),
             "Notes": e.get("notes", ""),
             "id": e.get("id", ""),
             } for e in sorted_entries]
