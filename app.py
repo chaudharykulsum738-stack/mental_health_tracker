@@ -442,7 +442,7 @@ with tab3:
             st.bar_chart(ws.set_index("week_label")["total_meditation"])
         st.bar_chart(ws.set_index("week_label")["total_steps"])
         st.bar_chart(ws.set_index("week_label")["avg_water"])
-        st.bar_chart(ws.set_index("week_label")["total_Screentime"])
+        st.bar_chart(ws.set_index("week_label")["total_screen"])
         st.dataframe(
             ws[[
                 "week_label",
