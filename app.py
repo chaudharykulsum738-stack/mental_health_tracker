@@ -376,7 +376,7 @@ with tab2:
             "Screen time": e.get("Screentime", ""),
             "Notes": e.get("notes", ""),
             "id": e.get("id", ""),
-            } for e in sorted_entries]
+        } for e in sorted_entries]
         st.dataframe([{k: v for k, v in row.items() if k != "id"} for row in display_rows], width="stretch")
         for row in display_rows:
             st.markdown(
@@ -393,6 +393,7 @@ with tab2:
                         <div class="entry-kv">Stress: <b>{row['Stress']}</b></div>
                         <div class="entry-kv">Anxiety: <b>{row['Anxiety']}</b></div>
                         <div class="entry-kv">Meditation: <b>{row['Meditation']} min</b></div>
+                        <div class="entry-kv">Screen time: <b>{row['Screen time']} min</b></div>
                     </div>
                     <div class="entry-kv">Notes: <b>{row['Notes']}</b></div>
                 </div>
@@ -413,6 +414,7 @@ with tab2:
                         "stress": int(e.get("stressLevel", 5)),
                         "anxiety": int(e.get("anxietyLevel", 5)),
                         "meditation": int(e.get("meditationMinutes", 0)),
+                        "Screen": int(e.get("Screentime", 0)),
                         "notes": e.get("notes", ""),
                     }
                 st.rerun()
@@ -451,6 +453,7 @@ with tab3:
                 "avg_water",
                 "total_meditation",
                 "total_steps",
+                "total_Screentime",
             ]]
         )
 
