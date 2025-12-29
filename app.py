@@ -232,17 +232,20 @@ def stats(entries):
             "avg_stress": 0.0,
             "avg_anxiety": 0.0,
             "meditation_total": 0,
+            "Screen_total":0,
         }
     s = sum(float(e.get("sleepHours", 0) or 0) for e in entries)
     stv = sum(int(e.get("stressLevel", 0) or 0) for e in entries)
     anx = sum(int(e.get("anxietyLevel", 0) or 0) for e in entries)
     med = sum(int(e.get("meditationMinutes", 0) or 0) for e in entries)
+    scr = sum(int(e.get("Screen time", 0) or 0) for e in entries)
     return {
         "count": n,
         "avg_sleep": round(s / n, 2),
         "avg_stress": round(stv / n, 2),
         "avg_anxiety": round(anx / n, 2),
         "meditation_total": med,
+        "Screen_total": scr,
     }
 
 def weekly_stats_df(entries):
@@ -258,6 +261,7 @@ def weekly_stats_df(entries):
         "stressLevel",
         "anxietyLevel",
         "meditationMinutes",
+        "Screen time"
     ]:
         df[col] = pd.to_numeric(df.get(col), errors="coerce")
     iso = df["date"].dt.isocalendar()
@@ -271,6 +275,7 @@ def weekly_stats_df(entries):
         avg_anxiety=("anxietyLevel", "mean"),
         avg_water=("waterLiters", "mean"),
         total_meditation=("meditationMinutes", "sum"),
+        total_screen=("Screen time","sum"),
         total_steps=("steps", "sum"),
         start=("date", "min"),
         end=("date", "max"),
@@ -280,7 +285,7 @@ def weekly_stats_df(entries):
 
 st.markdown('<div class="banner">🧠 Mental Health Tracker</div>', unsafe_allow_html=True)
 ms = stats(entries)
-mc1, mc2, mc3, mc4 = st.columns(4)
+mc1, mc2, mc3, mc4 ,mc5= st.columns(5)
 with mc1:
     st.metric("Entries", ms["count"]) 
 with mc2:
@@ -289,6 +294,8 @@ with mc3:
     st.metric("Avg Stress", ms["avg_stress"]) 
 with mc4:
     st.metric("Meditation Total", f"{ms['meditation_total']} min")
+with mc5:
+    st.metric("Screen Total",f"{ms['Screen_total']} min")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Log Entry", "History", "Dashboard", "Hobby", "Affirmations"])
 with tab1:
@@ -321,6 +328,7 @@ with tab1:
             "anxietyLevel": int(st.session_state.form["anxiety"]),
             "meditationMinutes": int(st.session_state.form["meditation"]),
             "notes": st.session_state.form["notes"].strip(),
+            "Screen time": int(st.session_state.form["Screen"])
         }
         if payload["date"] == "" or payload["mood"] == "":
             st.error("Date and Mood are required")
