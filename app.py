@@ -455,8 +455,7 @@ with tab3:
                 "total_meditation",
                 "total_Screentime",
                 "total_steps",
-                
-            ]]
+                ]]
         )
 
 with tab4:
