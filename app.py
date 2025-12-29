@@ -373,9 +373,10 @@ with tab2:
             "Stress": e.get("stressLevel", ""),
             "Anxiety": e.get("anxietyLevel", ""),
             "Meditation": e.get("meditationMinutes", ""),
+            "Screen time": e.get("Screen time", "")
             "Notes": e.get("notes", ""),
             "id": e.get("id", ""),
-        } for e in sorted_entries]
+            } for e in sorted_entries]
         st.dataframe([{k: v for k, v in row.items() if k != "id"} for row in display_rows], width="stretch")
         for row in display_rows:
             st.markdown(
