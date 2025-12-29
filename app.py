@@ -328,7 +328,7 @@ with tab1:
             "anxietyLevel": int(st.session_state.form["anxiety"]),
             "meditationMinutes": int(st.session_state.form["meditation"]),
             "notes": st.session_state.form["notes"].strip(),
-            "Screen time": int(st.session_state.form["Screen"])
+            "Screen time": int(st.session_state.form["Screen"]),
         }
         if payload["date"] == "" or payload["mood"] == "":
             st.error("Date and Mood are required")
@@ -373,7 +373,7 @@ with tab2:
             "Stress": e.get("stressLevel", ""),
             "Anxiety": e.get("anxietyLevel", ""),
             "Meditation": e.get("meditationMinutes", ""),
-            "Screen time": e.get("Screen time", "")
+            "Screen time": e.get("Screen time", ""),
             "Notes": e.get("notes", ""),
             "id": e.get("id", ""),
             } for e in sorted_entries]
