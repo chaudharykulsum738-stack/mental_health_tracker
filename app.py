@@ -102,6 +102,7 @@ def default_values():
         "anxiety": 5,
         "meditation": 0,
         "notes": "",
+        "screen time":2,
     }
 
 st.set_page_config(page_title="Mental Health Tracker", page_icon="🧠", layout="wide")
@@ -304,6 +305,7 @@ with tab1:
         st.session_state.form["water"] = st.number_input("Water Intake (Liters)", min_value=0.0, step=0.1, value=float(st.session_state.form.get("water", 0.0)))
         st.session_state.form["anxiety"] = st.slider("Anxiety Level (1–10)", min_value=1, max_value=10, value=int(st.session_state.form.get("anxiety", 5)))
         st.session_state.form["notes"] = st.text_area("Notes", value=st.session_state.form.get("notes", ""), height=100)
+        st.session_state.form["Screen"] = st.number_input("screentime (minutes)", min_value=0, step=1, value=int(st.session_state.form.get("screentime", 0)))
 
     cols = st.columns(3)
     save_label = "Update Entry" if st.session_state.editing_id else "Save Entry"
@@ -613,4 +615,3 @@ with tab5:
     if ac3.button("Next"):
         st.session_state.affirm_index = (st.session_state.affirm_index + 1) % len(affirmations)
         st.rerun()
-
