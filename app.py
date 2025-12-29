@@ -453,8 +453,9 @@ with tab3:
                 "avg_anxiety",
                 "avg_water",
                 "total_meditation",
-                "total_steps",
                 "total_Screentime",
+                "total_steps",
+                
             ]]
         )
 
