@@ -7,6 +7,7 @@ import shutil
 import csv
 import streamlit as st
 import pandas as pd
+import random
 
 BASE_DIR = Path(__file__).resolve().parent
 DESKTOP = Path(os.path.expanduser("~/Desktop"))
@@ -199,6 +200,8 @@ if "hobby_form_needs_sync" not in st.session_state:
     st.session_state.hobby_form_needs_sync = False
 if "affirm_index" not in st.session_state:
     st.session_state.affirm_index = 0
+if "tip_index" not in st.session_state:
+    st.session_state.tip_index = random.randint(0, 19)
 
 def sync_hobby_widgets_from_form():
     form = st.session_state.hobby_form or {}
@@ -321,7 +324,7 @@ with mc4:
 with mc5:
     st.metric("Avg Screen Time", f"{int(ms.get('avg_screen', 0))} min")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Log Entry", "History", "Dashboard", "Hobby", "Affirmations"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Log Entry", "History", "Dashboard", "Hobby", "Affirmations", "Daily Tips"])
 with tab1:
     st.subheader("Add / Update Entry")
     c1, c2 = st.columns(2)
@@ -654,3 +657,41 @@ with tab5:
     if ac3.button("Next"):
         st.session_state.affirm_index = (st.session_state.affirm_index + 1) % len(affirmations)
         st.rerun()
+
+with tab6:
+    st.subheader("Daily Mental Health Tips")
+    tips = [
+        "Take a few minutes to practice deep breathing exercises.",
+        "Step outside for a short walk and get some fresh air.",
+        "Write down three things you are grateful for today.",
+        "Limit your screen time before bed to improve sleep quality.",
+        "Drink a glass of water right after waking up.",
+        "Reach out to a friend or family member just to say hello.",
+        "Practice mindfulness while eating your meals.",
+        "Set a small, achievable goal for the day.",
+        "Take a break from social media for a few hours.",
+        "Listen to your favorite calming music or podcast.",
+        "Declutter a small area of your living space.",
+        "Do a quick body scan meditation to release tension.",
+        "Read a few pages of a book you enjoy.",
+        "Write down your thoughts or feelings in a journal.",
+        "Do a random act of kindness for someone else.",
+        "Spend a few minutes stretching your body.",
+        "Visualize a happy place or a positive outcome.",
+        "Forgive yourself for a past mistake.",
+        "Compliment yourself on something you did well.",
+        "Go to bed 30 minutes earlier than usual."
+    ]
+    st.info("Here is a mental health tip for you:")
+    st.write(
+        f"""
+        <div class="affirm-card">
+            {tips[st.session_state.tip_index]}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("Get Another Tip"):
+        st.session_state.tip_index = random.randint(0, len(tips) - 1)
+        st.rerun()
+
