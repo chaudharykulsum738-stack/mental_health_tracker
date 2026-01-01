@@ -74,7 +74,7 @@ def save_entries(items):
         "stressLevel",
         "anxietyLevel",
         "meditationMinutes",
-        "screenTimeHours",
+        "screenTimeMinutes",
         "notes",
     ]
     with CSV_PATH.open("w", encoding="utf-8", newline="") as f:
@@ -124,7 +124,7 @@ def default_values():
         "anxiety": 5,
         "meditation": 0,
         "notes": "",
-        "screen time":2,
+        "screenTimeMinutes": 0,
     }
 
 st.set_page_config(page_title="Mental Health Tracker", page_icon="🧠", layout="wide")
@@ -260,7 +260,7 @@ def stats(entries):
     stv = sum(int(e.get("stressLevel", 0) or 0) for e in entries)
     anx = sum(int(e.get("anxietyLevel", 0) or 0) for e in entries)
     med = sum(int(e.get("meditationMinutes", 0) or 0) for e in entries)
-    scr = sum(int(e.get("Screen time", 0) or 0) for e in entries)
+    scr = sum(int(e.get("screenTimeMinutes", 0) or 0) for e in entries)
     return {
         "count": n,
         "avg_sleep": round(s / n, 2),
@@ -283,7 +283,7 @@ def weekly_stats_df(entries):
         "stressLevel",
         "anxietyLevel",
         "meditationMinutes",
-        "Screen time"
+        "screenTimeMinutes"
     ]:
         df[col] = pd.to_numeric(df.get(col), errors="coerce")
     iso = df["date"].dt.isocalendar()
@@ -297,7 +297,7 @@ def weekly_stats_df(entries):
         avg_anxiety=("anxietyLevel", "mean"),
         avg_water=("waterLiters", "mean"),
         total_meditation=("meditationMinutes", "sum"),
-        total_screen=("Screen time","sum"),
+        total_screen=("screenTimeMinutes","sum"),
         total_steps=("steps", "sum"),
         start=("date", "min"),
         end=("date", "max"),
@@ -317,7 +317,7 @@ with mc3:
 with mc4:
     st.metric("Meditation Total", f"{ms['meditation_total']} min")
 with mc5:
-    st.metric("Screen Total",f"{ms['Screen_total']} min")
+    st.metric("Screen Total", f"{ms['Screen_total']} min")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Log Entry", "History", "Dashboard", "Hobby", "Affirmations"])
 with tab1:
@@ -334,7 +334,7 @@ with tab1:
         st.session_state.form["water"] = st.number_input("Water Intake (Liters)", min_value=0.0, step=0.1, value=float(st.session_state.form.get("water", 0.0)))
         st.session_state.form["anxiety"] = st.slider("Anxiety Level (1–10)", min_value=1, max_value=10, value=int(st.session_state.form.get("anxiety", 5)))
         st.session_state.form["notes"] = st.text_area("Notes", value=st.session_state.form.get("notes", ""), height=100)
-        st.session_state.form["Screen"] = st.number_input("screentime (minutes)", min_value=0, step=1, value=int(st.session_state.form.get("screentime", 0)))
+        st.session_state.form["screenTimeMinutes"] = st.number_input("Screen Time (minutes)", min_value=0, step=1, value=int(st.session_state.form.get("screenTimeMinutes", 0)))
 
     cols = st.columns(3)
     save_label = "Update Entry" if st.session_state.editing_id else "Save Entry"
@@ -349,7 +349,7 @@ with tab1:
             "stressLevel": int(st.session_state.form["stress"]),
             "anxietyLevel": int(st.session_state.form["anxiety"]),
             "meditationMinutes": int(st.session_state.form["meditation"]),
-            "Screen time": int(st.session_state.form["Screen"]),
+            "screenTimeMinutes": int(st.session_state.form["screenTimeMinutes"]),
             "notes": st.session_state.form["notes"].strip(),
         }
         if payload["date"] == "" or payload["mood"] == "":
@@ -395,7 +395,7 @@ with tab2:
             "Stress": e.get("stressLevel", ""),
             "Anxiety": e.get("anxietyLevel", ""),
             "Meditation": e.get("meditationMinutes", ""),
-            "Screen time": e.get("Screentime", ""),
+            "Screen time": e.get("screenTimeMinutes", ""),
             "Notes": e.get("notes", ""),
             "id": e.get("id", ""),
         } for e in sorted_entries]
@@ -436,7 +436,7 @@ with tab2:
                         "stress": int(e.get("stressLevel", 5)),
                         "anxiety": int(e.get("anxietyLevel", 5)),
                         "meditation": int(e.get("meditationMinutes", 0)),
-                        "Screen": int(e.get("Screentime", 0)),
+                        "screenTimeMinutes": int(e.get("screenTimeMinutes", 0)),
                         "notes": e.get("notes", ""),
                     }
                 st.rerun()
@@ -460,10 +460,10 @@ with tab3:
         c1, c2 = st.columns(2)
         with c1:
             st.line_chart(ws.set_index("week_label")[["avg_sleep", "avg_stress", "avg_anxiety"]])
+            st.bar_chart(ws.set_index("week_label")["total_steps"])
         with c2:
             st.bar_chart(ws.set_index("week_label")["total_meditation"])
-        st.bar_chart(ws.set_index("week_label")["total_steps"])
-        st.bar_chart(ws.set_index("week_label")["avg_water"])
+            st.bar_chart(ws.set_index("week_label")["avg_water"])
         st.bar_chart(ws.set_index("week_label")["total_screen"])
         st.dataframe(
             ws[[
@@ -650,4 +650,3 @@ with tab5:
     if ac3.button("Next"):
         st.session_state.affirm_index = (st.session_state.affirm_index + 1) % len(affirmations)
         st.rerun()
-
