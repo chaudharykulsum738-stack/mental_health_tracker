@@ -267,7 +267,8 @@ def stats(entries):
         "avg_stress": round(stv / n, 2),
         "avg_anxiety": round(anx / n, 2),
         "meditation_total": med,
-        "Screen_total": scr,
+        "screen_total": scr,
+        "avg_screen": round(scr / n, 0),
     }
 
 def weekly_stats_df(entries):
@@ -298,6 +299,7 @@ def weekly_stats_df(entries):
         avg_water=("waterLiters", "mean"),
         total_meditation=("meditationMinutes", "sum"),
         total_screen=("screenTimeMinutes","sum"),
+        avg_screen=("screenTimeMinutes", "mean"),
         total_steps=("steps", "sum"),
         start=("date", "min"),
         end=("date", "max"),
@@ -317,7 +319,7 @@ with mc3:
 with mc4:
     st.metric("Meditation Total", f"{ms['meditation_total']} min")
 with mc5:
-    st.metric("Screen Total", f"{ms['Screen_total']} min")
+    st.metric("Avg Screen Time", f"{int(ms.get('avg_screen', 0))} min")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Log Entry", "History", "Dashboard", "Hobby", "Affirmations"])
 with tab1:
@@ -465,6 +467,7 @@ with tab3:
             st.bar_chart(ws.set_index("week_label")["total_meditation"])
             st.bar_chart(ws.set_index("week_label")["avg_water"])
         st.bar_chart(ws.set_index("week_label")["total_screen"])
+        st.bar_chart(ws.set_index("week_label")["avg_screen"])
         st.dataframe(
             ws[[
                 "week_label",
@@ -476,6 +479,7 @@ with tab3:
                 "avg_water",
                 "total_meditation",
                 "total_screen",
+                "avg_screen",
                 "total_steps",
                 ]]
         )
