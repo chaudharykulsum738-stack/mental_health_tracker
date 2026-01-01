@@ -3,10 +3,11 @@ from uuid import uuid4
 from datetime import date, datetime
 import json
 import os
+import shutil
 import csv
-import socket
-from flask import Flask, jsonify, request, send_from_directory, redirect, url_for, session
-import html as html_lib
+import streamlit as st
+import pandas as pd
+import random
 
 BASE_DIR = Path(__file__).resolve().parent
 DESKTOP = Path(os.path.expanduser("~/Desktop"))
@@ -31,18 +32,37 @@ def pick_writable_dir(candidate_dirs):
     return BASE_DIR
 
 DATA_DIR = pick_writable_dir([os.getenv("MHT_DATA_DIR"), DESKTOP, BASE_DIR])
+JSON_PATH = DATA_DIR / "entries.json"
 CSV_PATH = DATA_DIR / "entries.csv"
 HOBBY_CSV_PATH = DATA_DIR / "hobbies.csv"
 
 def load_entries():
-    if not CSV_PATH.exists():
-        save_entries([])
-    try:
-        with CSV_PATH.open("r", encoding="utf-8", newline="") as f:
-            reader = csv.DictReader(f)
-            return list(reader)
-    except Exception:
-        return []
+    if CSV_PATH.exists():
+        try:
+            with CSV_PATH.open("r", encoding="utf-8", newline="") as f:
+                reader = csv.DictReader(f)
+                return list(reader)
+        except Exception:
+            return []
+    root_json = Path("entries.json")
+    src = None
+    if root_json.exists():
+        src = root_json
+    elif JSON_PATH.exists():
+        src = JSON_PATH
+    if src is not None:
+        try:
+            with src.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            save_entries(data)
+            try:
+                shutil.move(str(src), str(JSON_PATH))
+            except Exception:
+                pass
+            return data
+        except Exception:
+            return []
+    return []
 
 def save_entries(items):
     fields = [
@@ -64,641 +84,18 @@ def save_entries(items):
         for row in items:
             writer.writerow(row)
 
-def to_iso(d):
-    return d.isoformat() if isinstance(d, date) else str(d)
-
-app = Flask(__name__, static_folder=str(Path(".").resolve()))
-app.secret_key = os.urandom(24)
-
-def get_lan_ip():
-    s = None
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]
-    except Exception:
-        try:
-            return socket.gethostbyname(socket.gethostname())
-        except Exception:
-            return None
-    finally:
-        try:
-            if s is not None:
-                s.close()
-        except Exception:
-            pass
-
-def render_layout(title, body):
-    return f"""<!doctype html>
-<html lang='en'>
-  <head>
-    <meta charset='utf-8' />
-    <meta name='viewport' content='width=device-width, initial-scale=1' />
-    <title>{title}</title>
-    <link rel='stylesheet' href='/style.css' />
-  </head>
-  <body>
-    <header><h1>Mental Health Tracker</h1></header>
-    <main>
-      <div class='tabs'>
-        <a class='tab' href='/entry'>Entry</a>
-        <a class='tab' href='/history'>History</a>
-        <a class='tab' href='/dashboard'>Dashboard</a>
-        <a class='tab' href='/hobby'>Hobby</a>
-        <a class='tab' href='/affirmations'>Affirmations</a>
-        <a class='tab' href='/tips'>Daily Tips</a>
-      </div>
-      {body}
-    </main>
-    <footer><small>Data stored in CSV at Desktop via Python server</small></footer>
-  </body>
-</html>"""
-
-@app.get("/")
-def root():
-    ip = get_lan_ip()
-    url = f"http://{ip}:8000/" if ip else ""
-    mobile = ""
-    if url:
-        esc = html_lib.escape(url)
-        mobile = f"""
-        <p><b>Open on your phone (same Wi‑Fi):</b></p>
-        <p><a href='{esc}'>{esc}</a></p>
-        """
-    body = f"""
-    <section class='card'>
-      <h2>Welcome</h2>
-      <p>Select a page above.</p>
-      {mobile}
-      <p>If it doesn’t open on mobile, allow <b>Python</b> through Windows Firewall (Private network) and keep your phone on the same Wi‑Fi.</p>
-    </section>
-    """
-    return render_layout("Mental Health Tracker", body)
-
-@app.get("/entry")
-def entry_page():
-    today = date.today().isoformat()
-    body = f"""
-    <section class='card'>
-      <h2>Add / Update Entry</h2>
-      <form method='post' action='/entry'>
-        <div class='grid'>
-          <label><span>Date</span><input type='date' name='date' value='{today}' required /></label>
-          <label><span>Mood</span>
-            <select name='mood' required>
-              <option value=''>Select mood</option>
-              <option>Happy</option><option>Neutral</option><option>Sad</option><option>Stressed</option><option>Anxious</option>
-            </select>
-          </label>
-          <label><span>Sleep Hours</span><input type='number' step='0.1' min='0' max='24' name='sleepHours' /></label>
-          <label><span>Water Intake (L)</span><input type='number' step='0.1' min='0' name='waterLiters' /></label>
-          <label><span>Steps</span><input type='number' step='1' min='0' name='steps' /></label>
-          <label><span>Stress (1–10)</span><input type='number' min='1' max='10' name='stressLevel' value='5' /></label>
-          <label><span>Anxiety (1–10)</span><input type='number' min='1' max='10' name='anxietyLevel' value='5' /></label>
-          <label><span>Meditation (minutes)</span><input type='number' min='0' step='1' name='meditationMinutes' /></label>
-          <label><span>Screen Time (minutes)</span><input type='number' min='0' step='1' name='screenTimeMinutes' /></label>
-        </div>
-        <label class='notes'><span>Notes</span><textarea name='notes' rows='3'></textarea></label>
-        <div class='actions'>
-          <button type='submit' class='primary'>Save Entry</button>
-          <form method='post' action='/entries/clear' style='display:inline'>
-            <button type='submit' class='danger'>Clear All</button>
-          </form>
-        </div>
-      </form>
-    </section>
-    """
-    return render_layout("Entry", body)
-
-@app.post("/entry")
-def entry_post():
-    form = request.form
-    payload = {
-        "id": form.get("id") or str(uuid4()),
-        "date": form.get("date"),
-        "mood": form.get("mood", ""),
-        "sleepHours": form.get("sleepHours") or "",
-        "waterLiters": form.get("waterLiters") or "",
-        "steps": form.get("steps") or "",
-        "stressLevel": form.get("stressLevel") or "5",
-        "anxietyLevel": form.get("anxietyLevel") or "5",
-        "meditationMinutes": form.get("meditationMinutes") or "",
-        "screenTimeMinutes": form.get("screenTimeMinutes") or "",
-        "notes": (form.get("notes") or "").strip(),
-    }
-    ok, err = validate_payload(payload)
-    if not ok:
-        session["error"] = err
-        return redirect(url_for("entry_page"))
-    items = load_entries()
-    idx = next((i for i, x in enumerate(items) if x.get("id") == payload["id"]), -1)
-    if idx == -1:
-        items.append(payload)
-    else:
-        items[idx] = payload
-    save_entries(items)
-    session["message"] = "Entry saved"
-    return redirect(url_for("history_page"))
-
-@app.get("/history")
-def history_page():
-    items = load_entries()
-    rows = []
-    for e in sorted(items, key=lambda x: x.get("date", ""), reverse=True):
-        notes = html_lib.escape(e.get("notes", "") or "")
-        rows.append(f"""
-          <tr>
-            <td>{e.get('date','')}</td>
-            <td>{e.get('mood','')}</td>
-            <td>{e.get('sleepHours','')}</td>
-            <td>{e.get('waterLiters','')}</td>
-            <td>{e.get('steps','')}</td>
-            <td>{e.get('stressLevel','')}</td>
-            <td>{e.get('anxietyLevel','')}</td>
-            <td>{e.get('meditationMinutes','')}</td>
-            <td>{e.get('screenTimeMinutes','')}</td>
-            <td>{notes}</td>
-            <td>
-              <form method='post' action='/entries/delete' style='display:inline'>
-                <input type='hidden' name='id' value='{e.get('id','')}' />
-                <button type='submit' class='danger'>Delete</button>
-              </form>
-              <form method='get' action='/entry' style='display:inline'>
-                <input type='hidden' name='id' value='{e.get('id','')}' />
-                <button type='submit' class='primary'>Edit</button>
-              </form>
-            </td>
-          </tr>
-        """)
-    body = f"""
-    <section class='card'>
-      <div class='list-header'>
-        <h2>History</h2>
-        <div class='list-actions'>
-          <form method='post' action='/entries/clear'>
-            <button type='submit' class='danger'>Clear All</button>
-          </form>
-        </div>
-      </div>
-      <div class='table-wrap'>
-        <table>
-          <thead><tr>
-            <th>Date</th><th>Mood</th><th>Sleep</th><th>Water (L)</th><th>Steps</th>
-            <th>Stress</th><th>Anxiety</th><th>Meditation</th><th>Screen Time</th><th>Notes</th><th>Actions</th>
-          </tr></thead>
-          <tbody>{''.join(rows) if rows else '<tr><td colspan="11">No entries yet</td></tr>'}</tbody>
-        </table>
-      </div>
-    </section>
-    """
-    return render_layout("History", body)
-
-
-@app.post("/entries/delete")
-def entries_delete_post():
-    id_ = request.form.get("id")
-    items = load_entries()
-    items = [x for x in items if x.get("id") != id_]
-    save_entries(items)
-    return redirect(url_for("history_page"))
-
-@app.post("/entries/clear")
-def entries_clear_post():
+# Ensure CSV exists with headers on first run
+if not CSV_PATH.exists():
     save_entries([])
-    return redirect(url_for("history_page"))
-
-def compute_weekly_stats():
-    items = load_entries()
-    parsed = []
-    for e in items:
-        try:
-            d = datetime.fromisoformat(e.get("date")).date()
-        except Exception:
-            continue
-        iso = d.isocalendar()
-        parsed.append({
-            "iso_year": iso[0],
-            "iso_week": iso[1],
-            "week_label": f"{iso[0]}-W{str(iso[1]).zfill(2)}",
-            "sleepHours": float(e.get("sleepHours") or 0),
-            "waterLiters": float(e.get("waterLiters") or 0),
-            "steps": int(e.get("steps") or 0),
-            "stressLevel": int(e.get("stressLevel") or 0),
-            "anxietyLevel": int(e.get("anxietyLevel") or 0),
-            "meditationMinutes": int(e.get("meditationMinutes") or 0),
-            "screenTimeMinutes": int(e.get("screenTimeMinutes") or 0),
-            "date": d.isoformat(),
-        })
-    agg = {}
-    for r in parsed:
-        k = (r["iso_year"], r["iso_week"], r["week_label"])
-        a = agg.setdefault(k, {
-            "week_label": r["week_label"], "start": r["date"], "end": r["date"],
-            "sleep_sum": 0.0, "stress_sum": 0, "anxiety_sum": 0, "water_sum": 0.0,
-            "meditation_total": 0, "screen_total": 0, "steps_total": 0, "count": 0,
-        })
-        a["start"] = min(a["start"], r["date"])
-        a["end"] = max(a["end"], r["date"])
-        a["sleep_sum"] += r["sleepHours"]
-        a["stress_sum"] += r["stressLevel"]
-        a["anxiety_sum"] += r["anxietyLevel"]
-        a["water_sum"] += r["waterLiters"]
-        a["meditation_total"] += r["meditationMinutes"]
-        a["screen_total"] += r["screenTimeMinutes"]
-        a["steps_total"] += r["steps"]
-        a["count"] += 1
-    out = []
-    for _, v in sorted(agg.items(), key=lambda x: x[0]):
-        c = max(v["count"], 1)
-        out.append({
-            "week_label": v["week_label"],
-            "start": v["start"],
-            "end": v["end"],
-            "avg_sleep": round(v["sleep_sum"] / c, 2),
-            "avg_stress": round(v["stress_sum"] / c, 2),
-            "avg_anxiety": round(v["anxiety_sum"] / c, 2),
-            "avg_water": round(v["water_sum"] / c, 2),
-            "avg_screen": round(v["screen_total"] / c, 0),
-            "total_meditation": v["meditation_total"],
-            "total_screen": v["screen_total"],
-            "total_steps": v["steps_total"],
-        })
-    return out
-
-@app.get("/dashboard")
-def dashboard_page():
-    ws = compute_weekly_stats()
-    def svg_line_multi(labels, series, colors, names, width=700, height=260):
-        if not series or not labels:
-            return ""
-        pad_left, pad_right, pad_top, pad_bottom = 50, 10, 20, 40
-        inner_w = width - pad_left - pad_right
-        inner_h = height - pad_top - pad_bottom
-        all_vals = [v for s in series for v in s]
-        vmin = min(all_vals)
-        vmax = max(all_vals)
-        if vmax == vmin:
-            vmax = vmin + 1
-        def x(i):
-            if len(labels) == 1:
-                return pad_left + inner_w / 2
-            return pad_left + (i * inner_w) / (len(labels) - 1)
-        def y(v):
-            return pad_top + inner_h - ((v - vmin) * inner_h) / (vmax - vmin)
-        x_ticks = []
-        for i in range(len(labels)):
-            xi = x(i)
-            x_ticks.append(f"<line x1='{xi}' y1='{pad_top+inner_h}' x2='{xi}' y2='{pad_top+inner_h+5}' stroke='#bbb'/>")
-        axis = f"<line x1='{pad_left}' y1='{pad_top+inner_h}' x2='{pad_left+inner_w}' y2='{pad_top+inner_h}' stroke='#999'/>"
-        yaxis = f"<line x1='{pad_left}' y1='{pad_top}' x2='{pad_left}' y2='{pad_top+inner_h}' stroke='#999'/>"
-        y_grid = []
-        for t in range(5):
-            val = vmin + (t * (vmax - vmin)) / 4
-            yi = y(val)
-            y_grid.append(f"<line x1='{pad_left}' y1='{yi}' x2='{pad_left+inner_w}' y2='{yi}' stroke='#eee'/>")
-        series_polylines = []
-        markers = []
-        for idx, s in enumerate(series):
-            pts = " ".join(f"{x(i)},{y(v)}" for i, v in enumerate(s))
-            color = colors[idx]
-            series_polylines.append(f"<polyline fill='none' stroke='{color}' stroke-width='2' points='{pts}' />")
-            for i, v in enumerate(s):
-                markers.append(f"<circle cx='{x(i)}' cy='{y(v)}' r='2.5' fill='{color}' />")
-        labels_elems = []
-        for i in range(len(labels)):
-            labels_elems.append(f"<text x='{x(i)}' y='{pad_top+inner_h+18}' font-size='10' text-anchor='middle' fill='#555'>{labels[i]}</text>")
-        legend_items = []
-        lx = pad_left + 10
-        ly = pad_top + 10
-        for i, name in enumerate(names):
-            color = colors[i]
-            legend_items.append(f"<rect x='{lx + i*120}' y='{ly}' width='12' height='12' fill='{color}' />")
-            legend_items.append(f"<text x='{lx + i*120 + 18}' y='{ly+11}' font-size='12' fill='#333'>{name}</text>")
-        vmin_txt = f"<text x='{pad_left-4}' y='{pad_top+inner_h+18}' font-size='10' text-anchor='end' fill='#555'>{round(vmin,2)}</text>"
-        vmax_txt = f"<text x='{pad_left-4}' y='{pad_top+12}' font-size='10' text-anchor='end' fill='#555'>{round(vmax,2)}</text>"
-        return f"<svg viewBox='0 0 {width} {height}' width='100%' height='100%' role='img'>{''.join(y_grid)}{axis}{yaxis}{''.join(series_polylines)}{''.join(markers)}{''.join(x_ticks)}{''.join(labels_elems)}{''.join(legend_items)}{vmin_txt}{vmax_txt}</svg>"
-    def svg_bar(labels, values, width=700, height=240, fill="#0ea5e9"):
-        if not values:
-            return ""
-        pad_left, pad_right, pad_top, pad_bottom = 50, 10, 20, 40
-        inner_w = width - pad_left - pad_right
-        inner_h = height - pad_top - pad_bottom
-        vmax = max(values) if max(values) > 0 else 1
-        n = len(values)
-        bar_gap = 8
-        bar_w = max(1, (inner_w - (n + 1) * bar_gap) / n)
-        bars = []
-        axis = f"<line x1='{pad_left}' y1='{pad_top+inner_h}' x2='{pad_left+inner_w}' y2='{pad_top+inner_h}' stroke='#999'/>"
-        yaxis = f"<line x1='{pad_left}' y1='{pad_top}' x2='{pad_left}' y2='{pad_top+inner_h}' stroke='#999'/>"
-        y_grid = []
-        for t in range(5):
-            val = (t * vmax) / 4
-            yi = pad_top + inner_h - (val * inner_h) / vmax
-            y_grid.append(f"<line x1='{pad_left}' y1='{yi}' x2='{pad_left+inner_w}' y2='{yi}' stroke='#eee'/>")
-        label_elems = []
-        for i, v in enumerate(values):
-            x = pad_left + bar_gap + i * (bar_w + bar_gap)
-            h = (v * inner_h) / vmax
-            y = pad_top + inner_h - h
-            bars.append(f"<rect x='{x}' y='{y}' width='{bar_w}' height='{h}' fill='{fill}' />")
-            label_elems.append(f"<text x='{x + bar_w/2}' y='{pad_top+inner_h+18}' font-size='10' text-anchor='middle' fill='#555'>{labels[i]}</text>")
-        vmax_txt = f"<text x='{pad_left-4}' y='{pad_top+12}' font-size='10' text-anchor='end' fill='#555'>{vmax}</text>"
-        return f"<svg viewBox='0 0 {width} {height}' width='100%' height='100%' role='img'>{''.join(y_grid)}{axis}{yaxis}{''.join(bars)}{''.join(label_elems)}{vmax_txt}</svg>"
-    rows = []
-    for w in ws:
-        rows.append(f"""
-          <tr>
-            <td>{w['week_label']}</td>
-            <td>{w['start']}</td>
-            <td>{w['end']}</td>
-            <td>{w['avg_sleep']}</td>
-            <td>{w['avg_stress']}</td>
-            <td>{w['avg_anxiety']}</td>
-            <td>{w['avg_water']}</td>
-            <td>{w['total_meditation']}</td>
-            <td>{w['total_screen']}</td>
-            <td>{w['avg_screen']}</td>
-            <td>{w['total_steps']}</td>
-          </tr>
-        """)
-    labels = [w["week_label"] for w in ws]
-    line_multi = svg_line_multi(
-        labels,
-        [
-            [w["avg_sleep"] for w in ws],
-            [w["avg_stress"] for w in ws],
-            [w["avg_anxiety"] for w in ws],
-        ],
-        ["#2563eb", "#ef4444", "#7c3aed"],
-        ["Sleep", "Stress", "Anxiety"],
-    )
-    meditation_svg = svg_bar(labels, [w["total_meditation"] for w in ws], fill="#22c55e")
-    screen_svg = svg_bar(labels, [w["total_screen"] for w in ws], fill="#f59e0b")
-    avg_screen_svg = svg_bar(labels, [w["avg_screen"] for w in ws], fill="#fcd34d")
-    steps_svg = svg_bar(labels, [w["total_steps"] for w in ws], fill="#0ea5e9")
-    water_svg = svg_bar(labels, [w["avg_water"] for w in ws], fill="#14b8a6")
-    charts = ""
-    if ws:
-        charts = f"""
-        <section class='card'>
-          <h2>Charts</h2>
-          <div class='grid'>
-            <div><h3>Avg Sleep / Stress / Anxiety</h3><div class='chart'>{line_multi}</div></div>
-            <div><h3>Total Meditation</h3><div class='chart'>{meditation_svg}</div></div>
-            <div><h3>Total Screen Time</h3><div class='chart'>{screen_svg}</div></div>
-            <div><h3>Avg Screen Time</h3><div class='chart'>{avg_screen_svg}</div></div>
-            <div><h3>Total Steps</h3><div class='chart'>{steps_svg}</div></div>
-            <div><h3>Avg Water (L)</h3><div class='chart'>{water_svg}</div></div>
-          </div>
-        </section>
-        """
-    body = f"""
-    <section class='card'>
-      <h2>Dashboard (Weekly)</h2>
-      <div class='table-wrap'>
-        <table>
-          <thead><tr>
-            <th>Week</th><th>Start</th><th>End</th>
-            <th>Avg Sleep</th><th>Avg Stress</th><th>Avg Anxiety</th><th>Avg Water</th>
-            <th>Total Meditation</th><th>Total Screen</th><th>Avg Screen</th><th>Total Steps</th>
-          </tr></thead>
-          <tbody>{''.join(rows) if rows else '<tr><td colspan="11">No entries yet</td></tr>'}</tbody>
-        </table>
-      </div>
-    </section>
-    {charts}
-    """
-    return render_layout("Dashboard", body)
-
-@app.get("/style.css")
-def style_css():
-    return send_from_directory(app.static_folder, "style.css")
-
-@app.get("/hobby")
-def hobby_page():
-    items = load_hobbies()
-    rows = []
-    for h in sorted(items, key=lambda x: x.get("date", ""), reverse=True):
-        notes = html_lib.escape(h.get("notes", "") or "")
-        rows.append(f"""
-          <tr>
-            <td>{h.get('date','')}</td>
-            <td>{html_lib.escape(h.get('hobbyName',''))}</td>
-            <td>{h.get('durationMinutes','')}</td>
-            <td>{h.get('satisfactionLevel','')}</td>
-            <td>{notes}</td>
-            <td>
-              <form method='post' action='/hobbies/delete' style='display:inline'>
-                <input type='hidden' name='id' value='{h.get('id','')}' />
-                <button type='submit' class='danger'>Delete</button>
-              </form>
-            </td>
-          </tr>
-        """)
-    today = date.today().isoformat()
-    body = f"""
-    <section class='card'>
-      <h2>Hobby Tracker</h2>
-      <form method='post' action='/hobby'>
-        <div class='grid'>
-          <label><span>Date</span><input type='date' name='date' value='{today}' required /></label>
-          <label><span>Hobby</span><input type='text' name='hobbyName' required /></label>
-          <label><span>Duration (minutes)</span><input type='number' name='durationMinutes' min='0' step='1' /></label>
-          <label><span>Satisfaction (1-10)</span><input type='number' name='satisfactionLevel' min='1' max='10' value='5' /></label>
-        </div>
-        <label class='notes'><span>Notes</span><textarea name='notes' rows='3'></textarea></label>
-        <div class='actions'>
-          <button type='submit' class='primary'>Save Hobby</button>
-          <form method='post' action='/hobbies/clear' style='display:inline'>
-            <button type='submit' class='danger'>Clear All</button>
-          </form>
-        </div>
-      </form>
-    </section>
-    <section class='card'>
-      <div class='list-header'><h3>Hobby History</h3></div>
-      <div class='table-wrap'>
-        <table>
-          <thead><tr><th>Date</th><th>Hobby</th><th>Duration</th><th>Satisfaction</th><th>Notes</th><th>Actions</th></tr></thead>
-          <tbody>{''.join(rows) if rows else '<tr><td colspan=\"6\">No hobbies yet</td></tr>'}</tbody>
-        </table>
-      </div>
-    </section>
-    """
-    return render_layout("Hobby", body)
-
-@app.post("/hobby")
-def hobby_post():
-    form = request.form
-    payload = {
-        "id": form.get("id") or str(uuid4()),
-        "date": form.get("date"),
-        "hobbyName": form.get("hobbyName", ""),
-        "durationMinutes": form.get("durationMinutes") or "",
-        "satisfactionLevel": form.get("satisfactionLevel") or "5",
-        "notes": (form.get("notes") or "").strip(),
-    }
-    ok, err = validate_hobby(payload)
-    if not ok:
-        session["error"] = err
-        return redirect(url_for("hobby_page"))
-    items = load_hobbies()
-    idx = next((i for i, x in enumerate(items) if x.get("id") == payload["id"]), -1)
-    if idx == -1:
-        items.append(payload)
-    else:
-        items[idx] = payload
-    save_hobbies(items)
-    return redirect(url_for("hobby_page"))
-
-@app.post("/hobbies/delete")
-def hobbies_delete_post():
-    id_ = request.form.get("id")
-    items = load_hobbies()
-    items = [x for x in items if x.get("id") != id_]
-    save_hobbies(items)
-    return redirect(url_for("hobby_page"))
-
-@app.post("/hobbies/clear")
-def hobbies_clear_post():
-    save_hobbies([])
-    return redirect(url_for("hobby_page"))
-
-AFFIRMATIONS = [
-    "I believe in my abilities and express my true self with confidence.",
-    "I am confident in my skills and talents.",
-    "I embrace my uniqueness and share it with the world.",
-    "I am capable of achieving my goals.",
-    "I am worthy of all the success and happiness that comes my way.",
-    "I trust myself to make the right decisions.",
-    "I release self-doubt and embrace self-confidence.",
-    "I am proud of who I am and what I have accomplished.",
-    "I radiate confidence in all that I do.",
-    "I am courageous, strong, and resilient.",
-    "I choose happiness and positivity every day.",
-    "I am grateful for the small joys in my life.",
-    "I deserve happiness and welcome it into my life.",
-    "My happiness comes from within.",
-    "I release negative thoughts and focus on positivity.",
-    "I am surrounded by love, joy, and abundance.",
-    "I am in control of my own happiness.",
-    "I allow myself to feel happy in the present moment.",
-    "I create joy in my life through positive choices.",
-    "Happiness flows effortlessly into my life.",
-    "I love and accept myself exactly as I am.",
-    "I am deserving of love and respect from myself and others.",
-    "I forgive myself for past mistakes and grow stronger each day.",
-    "I am kind to myself and speak positively about myself.",
-    "I nurture myself with love and compassion.",
-    "I am enough, just as I am.",
-    "I am worthy of love, happiness, and fulfillment.",
-    "I take care of my mind, body, and spirit with love.",
-    "I release self-criticism and embrace self-love.",
-    "I honor my body and treat it with respect.",
-    "I am resilient and can overcome any challenge.",
-    "I turn obstacles into opportunities for growth.",
-    "I have the strength to navigate through life’s challenges.",
-    "I embrace change and welcome personal growth.",
-    "Every setback is an opportunity for me to learn and grow.",
-    "I am patient with myself as I grow and evolve.",
-    "I trust the process of life and embrace the journey.",
-    "I am open to new experiences and personal growth.",
-    "I am constantly learning and improving.",
-    "I choose to rise above challenges and grow stronger every day.",
-    "I am at peace with who I am and where I am in life.",
-    "I release tension and stress, embracing calm and peace.",
-    "I am present in this moment, fully experiencing it with peace.",
-    "I trust that everything is unfolding in perfect timing.",
-    "I am grounded, centered, and at peace with myself.",
-    "I choose peace over worry and calm over anxiety.",
-    "I am in control of my thoughts, and I choose positive ones.",
-    "I breathe deeply and release tension with every breath.",
-    "I am a beacon of peace and tranquility in all situations.",
-    "My mind is calm, and I trust myself to handle whatever comes my way",
-]
-
-@app.get("/affirmations")
-def affirmations_page():
-    idx = session.get("affirm_index", 0)
-    quote = AFFIRMATIONS[idx]
-    body = f"""
-    <section class='card'>
-      <h2>Affirmations</h2>
-      <div class='affirm-card'><p class='affirm-text'>{html_lib.escape(quote)}</p></div>
-      <div class='actions'>
-        <form method='post' action='/affirmations/prev'><button class='secondary' type='submit'>Previous</button></form>
-        <form method='post' action='/affirmations/random'><button type='submit'>Random</button></form>
-        <form method='post' action='/affirmations/next'><button class='secondary' type='submit'>Next</button></form>
-      </div>
-    </section>
-    """
-    return render_layout("Affirmations", body)
-
-@app.post("/affirmations/prev")
-def affirm_prev():
-    idx = session.get("affirm_index", 0)
-    idx = (idx - 1) % len(AFFIRMATIONS)
-    session["affirm_index"] = idx
-    return redirect(url_for("affirmations_page"))
-
-@app.post("/affirmations/next")
-def affirm_next():
-    idx = session.get("affirm_index", 0)
-    idx = (idx + 1) % len(AFFIRMATIONS)
-    session["affirm_index"] = idx
-    return redirect(url_for("affirmations_page"))
-
-@app.post("/affirmations/random")
-def affirm_random():
-    import random
-    session["affirm_index"] = random.randrange(0, len(AFFIRMATIONS))
-    return redirect(url_for("affirmations_page"))
-
-TIPS = [
-    "Take a few minutes to practice deep breathing exercises.",
-    "Step outside for a short walk and get some fresh air.",
-    "Write down three things you are grateful for today.",
-    "Limit your screen time before bed to improve sleep quality.",
-    "Drink a glass of water right after waking up.",
-    "Reach out to a friend or family member just to say hello.",
-    "Practice mindfulness while eating your meals.",
-    "Set a small, achievable goal for the day.",
-    "Take a break from social media for a few hours.",
-    "Listen to your favorite calming music or podcast.",
-    "Declutter a small area of your living space.",
-    "Do a quick body scan meditation to release tension.",
-    "Read a few pages of a book you enjoy.",
-    "Write down your thoughts or feelings in a journal.",
-    "Do a random act of kindness for someone else.",
-    "Spend a few minutes stretching your body.",
-    "Visualize a happy place or a positive outcome.",
-    "Forgive yourself for a past mistake.",
-    "Compliment yourself on something you did well.",
-    "Go to bed 30 minutes earlier than usual."
-]
-
-@app.get("/tips")
-def tips_page():
-    import random
-    tip = random.choice(TIPS)
-    body = f"""
-    <section class='card'>
-      <h2>Daily Mental Health Tips</h2>
-      <div class='affirm-card'><p class='affirm-text'>{html_lib.escape(tip)}</p></div>
-      <div class='actions'>
-        <a href='/tips'><button class='primary'>Get Another Tip</button></a>
-      </div>
-    </section>
-    """
-    return render_layout("Daily Tips", body)
-
-@app.get("/api/entries")
-def api_entries_get():
-    return jsonify(load_entries())
+if not HOBBY_CSV_PATH.exists():
+    with HOBBY_CSV_PATH.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["id", "date", "hobbyName", "durationMinutes", "satisfactionLevel", "notes"],
+        )
+        writer.writeheader()
 
 def load_hobbies():
-    if not HOBBY_CSV_PATH.exists():
-        save_hobbies([])
     try:
         with HOBBY_CSV_PATH.open("r", encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
@@ -707,235 +104,613 @@ def load_hobbies():
         return []
 
 def save_hobbies(items):
-    fields = [
-        "id",
-        "date",
-        "hobbyName",
-        "durationMinutes",
-        "satisfactionLevel",
-        "notes",
-    ]
+    fields = ["id", "date", "hobbyName", "durationMinutes", "satisfactionLevel", "notes"]
     with HOBBY_CSV_PATH.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
         for row in items:
             writer.writerow(row)
 
-def validate_payload(p):
-    if not p.get("date") or not p.get("mood"):
-        return False, "Date and Mood are required"
-    try:
-        datetime.fromisoformat(str(p.get("date")))
-    except Exception:
-        return False, "Invalid date format"
-    try:
-        s = int(p.get("stressLevel", 0))
-        a = int(p.get("anxietyLevel", 0))
-    except Exception:
-        return False, "Stress/Anxiety must be integers"
-    if s < 1 or s > 10 or a < 1 or a > 10:
-        return False, "Stress/Anxiety must be between 1 and 10"
-    return True, None
+def to_iso(d):
+    return d.isoformat() if isinstance(d, date) else str(d)
 
-@app.post("/api/entries")
-def api_entries_post():
-    payload = request.get_json(force=True) or {}
-    ok, err = validate_payload(payload)
-    if not ok:
-        return jsonify({"error": err}), 400
-    items = load_entries()
-    payload = {
-        "id": payload.get("id") or str(uuid4()),
-        "date": to_iso(payload.get("date")),
-        "mood": payload.get("mood", ""),
-        "sleepHours": float(payload.get("sleepHours") or 0) if payload.get("sleepHours") is not None else "",
-        "waterLiters": float(payload.get("waterLiters") or 0) if payload.get("waterLiters") is not None else "",
-        "steps": int(payload.get("steps") or 0) if payload.get("steps") is not None else "",
-        "stressLevel": int(payload.get("stressLevel", 5)),
-        "anxietyLevel": int(payload.get("anxietyLevel", 5)),
-        "meditationMinutes": int(payload.get("meditationMinutes") or 0) if payload.get("meditationMinutes") is not None else "",
-        "notes": (payload.get("notes") or "").strip(),
+def default_values():
+    return {
+        "date": date.today(),
+        "mood": "",
+        "sleep": 0.0,
+        "water": 0.0,
+        "steps": 0,
+        "stress": 5,
+        "anxiety": 5,
+        "meditation": 0,
+        "notes": "",
+        "screenTimeMinutes": 0,
     }
-    items.append(payload)
-    save_entries(items)
-    return jsonify(payload), 201
 
-@app.put("/api/entries/<id>")
-def api_entries_put(id):
-    payload = request.get_json(force=True) or {}
-    ok, err = validate_payload(payload)
-    if not ok:
-        return jsonify({"error": err}), 400
-    items = load_entries()
-    idx = next((i for i, x in enumerate(items) if x.get("id") == id), -1)
-    if idx == -1:
-        return jsonify({"error": "Not found"}), 404
-    updated = {
-        "id": id,
-        "date": to_iso(payload.get("date")),
-        "mood": payload.get("mood", ""),
-        "sleepHours": float(payload.get("sleepHours") or 0) if payload.get("sleepHours") is not None else "",
-        "waterLiters": float(payload.get("waterLiters") or 0) if payload.get("waterLiters") is not None else "",
-        "steps": int(payload.get("steps") or 0) if payload.get("steps") is not None else "",
-        "stressLevel": int(payload.get("stressLevel", 5)),
-        "anxietyLevel": int(payload.get("anxietyLevel", 5)),
-        "meditationMinutes": int(payload.get("meditationMinutes") or 0) if payload.get("meditationMinutes") is not None else "",
-        "notes": (payload.get("notes") or "").strip(),
+st.set_page_config(page_title="Mental Health Tracker", page_icon="🧠", layout="wide")
+st.markdown(
+    """
+    <style>
+    .stApp {
+      background: radial-gradient(1200px 800px at 20% -10%, rgba(59,130,246,0.12), transparent 60%),
+                  radial-gradient(1200px 800px at 90% 10%, rgba(14,165,233,0.14), transparent 55%),
+                  linear-gradient(180deg, #ffffff 0%, #f5f8ff 100%);
     }
-    items[idx] = updated
-    save_entries(items)
-    return jsonify(updated)
+    .block-container { padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1100px; }
+    .banner { text-align:center; padding: 12px 12px; margin: 0 0 8px; font-size: 30px; font-weight: 800; letter-spacing:-0.02em; background: linear-gradient(90deg,#3b82f6,#0ea5e9); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .metric-row { margin-bottom: 8px; }
+    .badge { display:inline-flex; align-items:center; gap:6px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(226,232,240,1); font-weight:700; font-size:12px; background: rgba(255,255,255,0.85); }
+    .badge.happy { color:#16a34a; border-color:#bbf7d0; }
+    .badge.neutral { color:#2563eb; border-color:#bfdbfe; }
+    .badge.sad { color:#60a5fa; border-color:#bfdbfe; }
+    .badge.stressed { color:#f59e0b; border-color:#fde68a; }
+    .badge.anxious { color:#ef4444; border-color:#fecaca; }
+    .entry-card { border: 1px solid rgba(226,232,240,1); background: rgba(248,250,252,0.9); border-radius: 14px; padding: 12px; margin: 10px 0; box-shadow: 0 10px 28px rgba(15,23,42,0.08); }
+    .entry-top { display:flex; align-items:center; justify-content:space-between; }
+    .entry-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 8px; }
+    .entry-kv { color:#475569; font-size: 13px; }
+    .entry-kv b { color:#0f172a; }
 
-@app.delete("/api/entries/<id>")
-def api_entries_delete(id):
-    items = load_entries()
-    new_items = [x for x in items if x.get("id") != id]
-    if len(new_items) == len(items):
-        return jsonify({"error": "Not found"}), 404
-    save_entries(new_items)
-    return jsonify({"status": "deleted"})
+    [data-testid="stMetric"] { background: rgba(248,250,252,0.9); border: 1px solid rgba(226,232,240,1); border-radius: 14px; padding: 12px 14px; box-shadow: 0 10px 28px rgba(15,23,42,0.08); }
+    [data-testid="stMetricValue"] { color:#0f172a; }
+    [data-testid="stMetricLabel"] { color:#475569; }
 
-@app.delete("/api/entries")
-def api_entries_clear():
-    save_entries([])
-    return jsonify({"status": "cleared"})
+    div.stButton>button { border-radius: 12px; border: 1px solid rgba(226,232,240,1); background: rgba(255,255,255,0.92); color:#0f172a; }
+    div.stButton>button:hover { border-color: rgba(59,130,246,0.55); box-shadow: 0 10px 28px rgba(59,130,246,0.14); transform: translateY(-1px); }
+    div.stButton>button:active { transform: translateY(1px); }
 
-def validate_hobby(p):
-    if not p.get("date") or not p.get("hobbyName"):
-        return False, "Date and Hobby are required"
-    try:
-        datetime.fromisoformat(str(p.get("date")))
-    except Exception:
-        return False, "Invalid date format"
-    try:
-        s = int(p.get("satisfactionLevel", 0))
-    except Exception:
-        return False, "Satisfaction must be integer"
-    if s < 1 or s > 10:
-        return False, "Satisfaction must be between 1 and 10"
-    return True, None
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; padding: 8px; border-radius: 16px; background: rgba(255,255,255,0.65); border: 1px solid rgba(226,232,240,1); }
+    .stTabs [data-baseweb="tab"] { border-radius: 999px; padding: 8px 12px; background: rgba(255,255,255,0.8); border: 1px solid rgba(226,232,240,1); }
+    .stTabs [aria-selected="true"] { background: linear-gradient(90deg, rgba(234,242,255,1) 0%, rgba(224,242,254,1) 100%); border-color: rgba(59,130,246,0.45); }
 
-@app.get("/api/hobbies")
-def api_hobbies_get():
-    return jsonify(load_hobbies())
+    .affirm-card { border: 1px solid rgba(226,232,240,1); background: linear-gradient(135deg, rgba(234,242,255,1) 0%, rgba(240,249,255,1) 100%); border-radius: 18px; padding: 18px; margin: 10px 0; text-align:center; font-size: 20px; color:#0b132b; box-shadow: 0 10px 28px rgba(59,130,246,0.14); }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-@app.post("/api/hobbies")
-def api_hobbies_post():
-    payload = request.get_json(force=True) or {}
-    ok, err = validate_hobby(payload)
-    if not ok:
-        return jsonify({"error": err}), 400
-    items = load_hobbies()
-    obj = {
-        "id": payload.get("id") or str(uuid4()),
-        "date": str(payload.get("date")),
-        "hobbyName": payload.get("hobbyName", ""),
-        "durationMinutes": int(payload.get("durationMinutes") or 0) if payload.get("durationMinutes") is not None else "",
-        "satisfactionLevel": int(payload.get("satisfactionLevel", 5)),
-        "notes": (payload.get("notes") or "").strip(),
+if "editing_id" not in st.session_state:
+    st.session_state.editing_id = None
+if "form" not in st.session_state:
+    st.session_state.form = default_values()
+if "celebrate" not in st.session_state:
+    st.session_state.celebrate = False
+if "hobby_editing_id" not in st.session_state:
+    st.session_state.hobby_editing_id = None
+if "hobby_form" not in st.session_state:
+    st.session_state.hobby_form = {
+        "date": date.today(),
+        "hobbyName": "",
+        "durationMinutes": 0,
+        "satisfactionLevel": 5,
+        "notes": "",
     }
-    items.append(obj)
-    save_hobbies(items)
-    return jsonify(obj), 201
+if "hobby_date" not in st.session_state:
+    st.session_state.hobby_date = st.session_state.hobby_form.get("date", date.today())
+if "hobby_name" not in st.session_state:
+    st.session_state.hobby_name = st.session_state.hobby_form.get("hobbyName", "")
+if "hobby_duration" not in st.session_state:
+    st.session_state.hobby_duration = int(st.session_state.hobby_form.get("durationMinutes", 0) or 0)
+if "hobby_satisfaction" not in st.session_state:
+    st.session_state.hobby_satisfaction = int(st.session_state.hobby_form.get("satisfactionLevel", 5) or 5)
+if "hobby_notes" not in st.session_state:
+    st.session_state.hobby_notes = st.session_state.hobby_form.get("notes", "")
+if "hobby_form_needs_sync" not in st.session_state:
+    st.session_state.hobby_form_needs_sync = False
+if "affirm_index" not in st.session_state:
+    st.session_state.affirm_index = 0
+if "tip_index" not in st.session_state:
+    st.session_state.tip_index = random.randint(0, 19)
 
-@app.put("/api/hobbies/<id>")
-def api_hobbies_put(id):
-    payload = request.get_json(force=True) or {}
-    ok, err = validate_hobby(payload)
-    if not ok:
-        return jsonify({"error": err}), 400
-    items = load_hobbies()
-    idx = next((i for i, x in enumerate(items) if x.get("id") == id), -1)
-    if idx == -1:
-        return jsonify({"error": "Not found"}), 404
-    obj = {
-        "id": id,
-        "date": str(payload.get("date")),
-        "hobbyName": payload.get("hobbyName", ""),
-        "durationMinutes": int(payload.get("durationMinutes") or 0) if payload.get("durationMinutes") is not None else "",
-        "satisfactionLevel": int(payload.get("satisfactionLevel", 5)),
-        "notes": (payload.get("notes") or "").strip(),
-    }
-    items[idx] = obj
-    save_hobbies(items)
-    return jsonify(obj)
+def sync_hobby_widgets_from_form():
+    form = st.session_state.hobby_form or {}
+    st.session_state.hobby_date = form.get("date", date.today())
+    st.session_state.hobby_name = form.get("hobbyName", "")
+    st.session_state.hobby_duration = int(form.get("durationMinutes", 0) or 0)
+    st.session_state.hobby_satisfaction = int(form.get("satisfactionLevel", 5) or 5)
+    st.session_state.hobby_notes = form.get("notes", "")
 
-@app.delete("/api/hobbies/<id>")
-def api_hobbies_delete(id):
-    items = load_hobbies()
-    new_items = [x for x in items if x.get("id") != id]
-    if len(new_items) == len(items):
-        return jsonify({"error": "Not found"}), 404
-    save_hobbies(new_items)
-    return jsonify({"status": "deleted"})
+def set_hobby_form_state(form):
+    st.session_state.hobby_form = form
+    st.session_state.hobby_form_needs_sync = True
 
-@app.delete("/api/hobbies")
-def api_hobbies_clear():
-    save_hobbies([])
-    return jsonify({"status": "cleared"})
+def reset_hobby_form_state():
+    st.session_state.hobby_editing_id = None
+    set_hobby_form_state(
+        {
+            "date": date.today(),
+            "hobbyName": "",
+            "durationMinutes": 0,
+            "satisfactionLevel": 5,
+            "notes": "",
+        }
+    )
 
-@app.get("/api/stats/weekly")
-def api_stats_weekly():
-    items = load_entries()
-    parsed = []
-    for e in items:
-        try:
-            d = datetime.fromisoformat(e.get("date")).date()
-        except Exception:
-            continue
-        iso = d.isocalendar()
-        parsed.append({
-            "iso_year": iso[0],
-            "iso_week": iso[1],
-            "week_label": f"{iso[0]}-W{str(iso[1]).zfill(2)}",
-            "sleepHours": float(e.get("sleepHours") or 0),
-            "waterLiters": float(e.get("waterLiters") or 0),
-            "steps": int(e.get("steps") or 0),
-            "stressLevel": int(e.get("stressLevel") or 0),
-            "anxietyLevel": int(e.get("anxietyLevel") or 0),
-            "meditationMinutes": int(e.get("meditationMinutes") or 0),
-            "date": d.isoformat(),
-        })
-    agg = {}
-    for r in parsed:
-        k = (r["iso_year"], r["iso_week"], r["week_label"]) 
-        a = agg.setdefault(k, {
-            "week_label": r["week_label"],
-            "start": r["date"],
-            "end": r["date"],
-            "sleep_sum": 0.0,
-            "stress_sum": 0,
-            "anxiety_sum": 0,
-            "water_sum": 0.0,
-            "meditation_total": 0,
-            "steps_total": 0,
+entries = load_entries()
+hobbies = load_hobbies()
+
+if st.session_state.celebrate:
+    st.balloons()
+    st.session_state.celebrate = False
+
+def mood_class(m):
+    m = (m or "").lower()
+    if m == "happy":
+        return "happy"
+    if m == "neutral":
+        return "neutral"
+    if m == "sad":
+        return "sad"
+    if m == "stressed":
+        return "stressed"
+    if m == "anxious":
+        return "anxious"
+    return ""
+
+def stats(entries):
+    n = len(entries)
+    if n == 0:
+        return {
             "count": 0,
-        })
-        a["start"] = min(a["start"], r["date"]) 
-        a["end"] = max(a["end"], r["date"]) 
-        a["sleep_sum"] += r["sleepHours"]
-        a["stress_sum"] += r["stressLevel"]
-        a["anxiety_sum"] += r["anxietyLevel"]
-        a["water_sum"] += r["waterLiters"]
-        a["meditation_total"] += r["meditationMinutes"]
-        a["steps_total"] += r["steps"]
-        a["count"] += 1
-    out = []
-    for _, v in sorted(agg.items(), key=lambda x: x[0]):
-        c = max(v["count"], 1)
-        out.append({
-            "week_label": v["week_label"],
-            "start": v["start"],
-            "end": v["end"],
-            "avg_sleep": round(v["sleep_sum"] / c, 2),
-            "avg_stress": round(v["stress_sum"] / c, 2),
-            "avg_anxiety": round(v["anxiety_sum"] / c, 2),
-            "avg_water": round(v["water_sum"] / c, 2),
-            "total_meditation": v["meditation_total"],
-            "total_steps": v["steps_total"],
-        })
-    return jsonify(out)
+            "avg_sleep": 0.0,
+            "avg_stress": 0.0,
+            "avg_anxiety": 0.0,
+            "meditation_total": 0,
+            "Screen_total":0,
+        }
+    s = sum(float(e.get("sleepHours", 0) or 0) for e in entries)
+    stv = sum(int(e.get("stressLevel", 0) or 0) for e in entries)
+    anx = sum(int(e.get("anxietyLevel", 0) or 0) for e in entries)
+    med = sum(int(e.get("meditationMinutes", 0) or 0) for e in entries)
+    scr = sum(int(e.get("screenTimeMinutes", 0) or 0) for e in entries)
+    return {
+        "count": n,
+        "avg_sleep": round(s / n, 2),
+        "avg_stress": round(stv / n, 2),
+        "avg_anxiety": round(anx / n, 2),
+        "meditation_total": med,
+        "screen_total": scr,
+        "avg_screen": round(scr / n, 0),
+    }
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=True)
+def weekly_stats_df(entries):
+    if not entries:
+        return pd.DataFrame()
+    df = pd.DataFrame(entries)
+    df["date"] = pd.to_datetime(df.get("date"), errors="coerce")
+    df = df.dropna(subset=["date"]) 
+    for col in [
+        "sleepHours",
+        "waterLiters",
+        "steps",
+        "stressLevel",
+        "anxietyLevel",
+        "meditationMinutes",
+        "screenTimeMinutes"
+    ]:
+        df[col] = pd.to_numeric(df.get(col), errors="coerce")
+    iso = df["date"].dt.isocalendar()
+    df["iso_year"] = iso["year"]
+    df["iso_week"] = iso["week"]
+    df["week_label"] = df["iso_year"].astype(str) + "-W" + df["iso_week"].astype(str).str.zfill(2)
+    g = df.groupby(["iso_year", "iso_week", "week_label"], dropna=False)
+    agg = g.agg(
+        avg_sleep=("sleepHours", "mean"),
+        avg_stress=("stressLevel", "mean"),
+        avg_anxiety=("anxietyLevel", "mean"),
+        avg_water=("waterLiters", "mean"),
+        total_meditation=("meditationMinutes", "sum"),
+        total_screen=("screenTimeMinutes","sum"),
+        avg_screen=("screenTimeMinutes", "mean"),
+        total_steps=("steps", "sum"),
+        start=("date", "min"),
+        end=("date", "max"),
+    )
+    agg = agg.sort_values(["iso_year", "iso_week"]).reset_index()
+    return agg
 
+st.markdown('<div class="banner">🧠 Mental Health Tracker</div>', unsafe_allow_html=True)
+ms = stats(entries)
+mc1, mc2, mc3, mc4 ,mc5= st.columns(5)
+with mc1:
+    st.metric("Entries", ms["count"]) 
+with mc2:
+    st.metric("Avg Sleep", f"{ms['avg_sleep']} h")
+with mc3:
+    st.metric("Avg Stress", ms["avg_stress"]) 
+with mc4:
+    st.metric("Meditation Total", f"{ms['meditation_total']} min")
+with mc5:
+    st.metric("Avg Screen Time", f"{int(ms.get('avg_screen', 0))} min")
+
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Log Entry", "History", "Dashboard", "Hobby", "Affirmations", "Daily Tips"])
+with tab1:
+    st.subheader("Add / Update Entry")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.session_state.form["date"] = st.date_input("Date", st.session_state.form.get("date", date.today()))
+        st.session_state.form["sleep"] = st.number_input("Sleep Hours", min_value=0.0, max_value=24.0, step=0.1, value=float(st.session_state.form.get("sleep", 0.0)))
+        st.session_state.form["steps"] = st.number_input("Steps", min_value=0, step=1, value=int(st.session_state.form.get("steps", 0)))
+        st.session_state.form["stress"] = st.slider("Stress Level (1–10)", min_value=1, max_value=10, value=int(st.session_state.form.get("stress", 5)))
+        st.session_state.form["meditation"] = st.number_input("Meditation (minutes)", min_value=0, step=1, value=int(st.session_state.form.get("meditation", 0)))
+    with c2:
+        st.session_state.form["mood"] = st.selectbox("Mood", ["", "Happy", "Neutral", "Sad", "Stressed", "Anxious"], index=["", "Happy", "Neutral", "Sad", "Stressed", "Anxious"].index(st.session_state.form.get("mood", "")))
+        st.session_state.form["water"] = st.number_input("Water Intake (Liters)", min_value=0.0, step=0.1, value=float(st.session_state.form.get("water", 0.0)))
+        st.session_state.form["anxiety"] = st.slider("Anxiety Level (1–10)", min_value=1, max_value=10, value=int(st.session_state.form.get("anxiety", 5)))
+        st.session_state.form["notes"] = st.text_area("Notes", value=st.session_state.form.get("notes", ""), height=100)
+        st.session_state.form["screenTimeMinutes"] = st.number_input("Screen Time (minutes)", min_value=0, step=1, value=int(st.session_state.form.get("screenTimeMinutes", 0)))
+
+    cols = st.columns(3)
+    save_label = "Update Entry" if st.session_state.editing_id else "Save Entry"
+    if cols[0].button(save_label):
+        payload = {
+            "id": st.session_state.editing_id or str(uuid4()),
+            "date": to_iso(st.session_state.form["date"]),
+            "mood": st.session_state.form["mood"],
+            "sleepHours": float(st.session_state.form["sleep"]),
+            "waterLiters": float(st.session_state.form["water"]),
+            "steps": int(st.session_state.form["steps"]),
+            "stressLevel": int(st.session_state.form["stress"]),
+            "anxietyLevel": int(st.session_state.form["anxiety"]),
+            "meditationMinutes": int(st.session_state.form["meditation"]),
+            "screenTimeMinutes": int(st.session_state.form["screenTimeMinutes"]),
+            "notes": st.session_state.form["notes"].strip(),
+        }
+        if payload["date"] == "" or payload["mood"] == "":
+            st.error("Date and Mood are required")
+        elif payload["stressLevel"] < 1 or payload["stressLevel"] > 10 or payload["anxietyLevel"] < 1 or payload["anxietyLevel"] > 10:
+            st.error("Stress/Anxiety must be between 1 and 10")
+        else:
+            if st.session_state.editing_id:
+                idx = next((i for i, x in enumerate(entries) if x["id"] == st.session_state.editing_id), -1)
+                if idx != -1:
+                    entries[idx] = payload
+                st.success("Entry updated")
+            else:
+                entries.append(payload)
+                st.success("Entry saved")
+            save_entries(entries)
+            st.session_state.editing_id = None
+            st.session_state.form = default_values()
+            st.session_state.celebrate = True
+            st.rerun()
+    if cols[1].button("Reset Form"):
+        st.session_state.editing_id = None
+        st.session_state.form = default_values()
+        st.rerun()
+    if cols[2].button("Clear All"):
+        entries = []
+        save_entries(entries)
+        st.session_state.editing_id = None
+        st.session_state.form = default_values()
+        st.success("History cleared")
+        st.rerun()
+
+with tab2:
+    st.subheader("History")
+    if entries:
+        sorted_entries = sorted(entries, key=lambda e: e.get("date", ""), reverse=True)
+        display_rows = [{
+            "Date": e.get("date", ""),
+            "Mood": e.get("mood", ""),
+            "Sleep": e.get("sleepHours", ""),
+            "Water (L)": e.get("waterLiters", ""),
+            "Steps": e.get("steps", ""),
+            "Stress": e.get("stressLevel", ""),
+            "Anxiety": e.get("anxietyLevel", ""),
+            "Meditation": e.get("meditationMinutes", ""),
+            "Screen time": e.get("screenTimeMinutes", ""),
+            "Notes": e.get("notes", ""),
+            "id": e.get("id", ""),
+        } for e in sorted_entries]
+        st.dataframe([{k: v for k, v in row.items() if k != "id"} for row in display_rows], width="stretch")
+        for row in display_rows:
+            st.markdown(
+                f"""
+                <div class="entry-card">
+                    <div class="entry-top">
+                        <span class="badge {mood_class(row['Mood'])}">{row['Mood']}</span>
+                        <div class="entry-kv"><b>{row['Date']}</b></div>
+                    </div>
+                    <div class="entry-grid">
+                        <div class="entry-kv">Sleep: <b>{row['Sleep']}</b></div>
+                        <div class="entry-kv">Water: <b>{row['Water (L)']} L</b></div>
+                        <div class="entry-kv">Steps: <b>{row['Steps']}</b></div>
+                        <div class="entry-kv">Stress: <b>{row['Stress']}</b></div>
+                        <div class="entry-kv">Anxiety: <b>{row['Anxiety']}</b></div>
+                        <div class="entry-kv">Meditation: <b>{row['Meditation']} min</b></div>
+                        <div class="entry-kv">Screen time: <b>{row['Screen time']} min</b></div>
+                    </div>
+                    <div class="entry-kv">Notes: <b>{row['Notes']}</b></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            c1, c2 = st.columns(2)
+            if c1.button("Edit", key=f"edit_{row['id']}"):
+                st.session_state.editing_id = row["id"]
+                e = next((x for x in entries if x["id"] == row["id"]), None)
+                if e:
+                    st.session_state.form = {
+                        "date": datetime.fromisoformat(e.get("date", date.today().isoformat())).date(),
+                        "mood": e.get("mood", ""),
+                        "sleep": float(e.get("sleepHours", 0.0)),
+                        "water": float(e.get("waterLiters", 0.0)),
+                        "steps": int(e.get("steps", 0)),
+                        "stress": int(e.get("stressLevel", 5)),
+                        "anxiety": int(e.get("anxietyLevel", 5)),
+                        "meditation": int(e.get("meditationMinutes", 0)),
+                        "screenTimeMinutes": int(e.get("screenTimeMinutes", 0)),
+                        "notes": e.get("notes", ""),
+                    }
+                st.rerun()
+            if c2.button("Delete", key=f"del_{row['id']}"):
+                entries = [x for x in entries if x["id"] != row["id"]]
+                save_entries(entries)
+                if st.session_state.editing_id == row["id"]:
+                    st.session_state.editing_id = None
+                    st.session_state.form = default_values()
+                st.success("Entry deleted")
+                st.rerun()
+    else:
+        st.info("No entries yet")
+
+with tab3:
+    st.subheader("Dashboard")
+    ws = weekly_stats_df(entries)
+    if ws.empty:
+        st.info("No entries yet")
+    else:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.line_chart(ws.set_index("week_label")[["avg_sleep", "avg_stress", "avg_anxiety"]])
+            st.bar_chart(ws.set_index("week_label")["total_steps"])
+        with c2:
+            st.bar_chart(ws.set_index("week_label")["total_meditation"])
+            st.bar_chart(ws.set_index("week_label")["avg_water"])
+        st.bar_chart(ws.set_index("week_label")["total_screen"])
+        st.bar_chart(ws.set_index("week_label")["avg_screen"])
+        st.dataframe(
+            ws[[
+                "week_label",
+                "start",
+                "end",
+                "avg_sleep",
+                "avg_stress",
+                "avg_anxiety",
+                "avg_water",
+                "total_meditation",
+                "total_screen",
+                "avg_screen",
+                "total_steps",
+                ]]
+        )
+
+with tab4:
+    st.subheader("Hobby Tracker")
+    hc1, hc2 = st.columns(2)
+    with hc1:
+        if st.session_state.hobby_form_needs_sync:
+            sync_hobby_widgets_from_form()
+            st.session_state.hobby_form_needs_sync = False
+        hobby_date = st.date_input("Date", key="hobby_date")
+        hobby_name = st.text_input("Hobby", key="hobby_name")
+        hobby_duration = st.number_input("Duration (minutes)", min_value=0, step=1, key="hobby_duration")
+        hobby_satisfaction = st.slider("Satisfaction (1–10)", min_value=1, max_value=10, key="hobby_satisfaction")
+        hobby_notes = st.text_area("Notes", height=100, key="hobby_notes")
+        st.session_state.hobby_form = {
+            "date": hobby_date,
+            "hobbyName": hobby_name,
+            "durationMinutes": hobby_duration,
+            "satisfactionLevel": hobby_satisfaction,
+            "notes": hobby_notes,
+        }
+        hcols = st.columns(3)
+        h_save_label = "Update Hobby" if st.session_state.hobby_editing_id else "Save Hobby"
+        if hcols[0].button(h_save_label, key="hobby_save_btn"):
+            payload = {
+                "id": st.session_state.hobby_editing_id or str(uuid4()),
+                "date": to_iso(hobby_date),
+                "hobbyName": (hobby_name or "").strip(),
+                "durationMinutes": int(hobby_duration or 0),
+                "satisfactionLevel": int(hobby_satisfaction or 0),
+                "notes": (hobby_notes or "").strip(),
+            }
+            if not payload["date"] or not payload["hobbyName"]:
+                st.error("Date and Hobby are required")
+            elif payload["satisfactionLevel"] < 1 or payload["satisfactionLevel"] > 10:
+                st.error("Satisfaction must be between 1 and 10")
+            else:
+                if st.session_state.hobby_editing_id:
+                    idx = next((i for i, x in enumerate(hobbies) if x["id"] == st.session_state.hobby_editing_id), -1)
+                    if idx != -1:
+                        hobbies[idx] = payload
+                    st.success("Hobby updated")
+                else:
+                    hobbies.append(payload)
+                    st.success("Hobby saved")
+                save_hobbies(hobbies)
+                reset_hobby_form_state()
+                st.rerun()
+        if hcols[1].button("Reset", key="hobby_reset_btn"):
+            reset_hobby_form_state()
+            st.rerun()
+        if hcols[2].button("Clear All", key="hobby_clear_btn"):
+            hobbies = []
+            save_hobbies(hobbies)
+            reset_hobby_form_state()
+            st.success("Hobby history cleared")
+            st.rerun()
+    with hc2:
+        st.subheader("Hobby History")
+        if hobbies:
+            sorted_h = sorted(hobbies, key=lambda e: e.get("date", ""), reverse=True)
+            for h in sorted_h:
+                st.markdown(
+                    f"""
+                    <div class="entry-card">
+                        <div class="entry-top">
+                            <div class="entry-kv"><b>{h.get('date','')}</b></div>
+                            <span class="badge neutral">{(h.get('hobbyName',''))}</span>
+                        </div>
+                        <div class="entry-grid">
+                            <div class="entry-kv">Duration: <b>{h.get('durationMinutes','')} min</b></div>
+                            <div class="entry-kv">Satisfaction: <b>{h.get('satisfactionLevel','')}</b></div>
+                        </div>
+                        <div class="entry-kv">Notes: <b>{h.get('notes','')}</b></div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                hc_edit, hc_del = st.columns(2)
+                if hc_edit.button("Edit", key=f"h_edit_{h['id']}"):
+                    st.session_state.hobby_editing_id = h["id"]
+                    set_hobby_form_state(
+                        {
+                            "date": datetime.fromisoformat(h.get("date", date.today().isoformat())).date(),
+                            "hobbyName": h.get("hobbyName", ""),
+                            "durationMinutes": int(h.get("durationMinutes", 0) or 0),
+                            "satisfactionLevel": int(h.get("satisfactionLevel", 5) or 5),
+                            "notes": h.get("notes", ""),
+                        }
+                    )
+                    st.rerun()
+                if hc_del.button("Delete", key=f"h_del_{h['id']}"):
+                    hobbies = [x for x in hobbies if x["id"] != h["id"]]
+                    save_hobbies(hobbies)
+                    if st.session_state.hobby_editing_id == h["id"]:
+                        reset_hobby_form_state()
+                    st.success("Hobby deleted")
+                    st.rerun()
+
+with tab5:
+    st.subheader("Affirmations")
+    affirmations = [
+        "I believe in my abilities and express my true self with confidence.",
+        "I am confident in my skills and talents.",
+        "I embrace my uniqueness and share it with the world.",
+        "I am capable of achieving my goals.",
+        "I am worthy of all the success and happiness that comes my way.",
+        "I trust myself to make the right decisions.",
+        "I release self-doubt and embrace self-confidence.",
+        "I am proud of who I am and what I have accomplished.",
+        "I radiate confidence in all that I do.",
+        "I am courageous, strong, and resilient.",
+        "I choose happiness and positivity every day.",
+        "I am grateful for the small joys in my life.",
+        "I deserve happiness and welcome it into my life.",
+        "My happiness comes from within.",
+        "I release negative thoughts and focus on positivity.",
+        "I am surrounded by love, joy, and abundance.",
+        "I am in control of my own happiness.",
+        "I allow myself to feel happy in the present moment.",
+        "I create joy in my life through positive choices.",
+        "Happiness flows effortlessly into my life.",
+        "I love and accept myself exactly as I am.",
+        "I am deserving of love and respect from myself and others.",
+        "I forgive myself for past mistakes and grow stronger each day.",
+        "I am kind to myself and speak positively about myself.",
+        "I nurture myself with love and compassion.",
+        "I am enough, just as I am.",
+        "I am worthy of love, happiness, and fulfillment.",
+        "I take care of my mind, body, and spirit with love.",
+        "I release self-criticism and embrace self-love.",
+        "I honor my body and treat it with respect.",
+        "I am resilient and can overcome any challenge.",
+        "I turn obstacles into opportunities for growth.",
+        "I have the strength to navigate through life’s challenges.",
+        "I embrace change and welcome personal growth.",
+        "Every setback is an opportunity for me to learn and grow.",
+        "I am patient with myself as I grow and evolve.",
+        "I trust the process of life and embrace the journey.",
+        "I am open to new experiences and personal growth.",
+        "I am constantly learning and improving.",
+        "I choose to rise above challenges and grow stronger every day.",
+        "I am at peace with who I am and where I am in life.",
+        "I release tension and stress, embracing calm and peace.",
+        "I am present in this moment, fully experiencing it with peace.",
+        "I trust that everything is unfolding in perfect timing.",
+        "I am grounded, centered, and at peace with myself.",
+        "I choose peace over worry and calm over anxiety.",
+        "I am in control of my thoughts, and I choose positive ones.",
+        "I breathe deeply and release tension with every breath.",
+        "I am a beacon of peace and tranquility in all situations.",
+        "My mind is calm, and I trust myself to handle whatever comes my way",
+    ]
+    st.info("Use the buttons to navigate affirmations")
+    st.write(
+        f"""
+        <div class="affirm-card">
+            {affirmations[st.session_state.affirm_index]}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    ac1, ac2, ac3 = st.columns(3)
+    if ac1.button("Previous"):
+        st.session_state.affirm_index = (st.session_state.affirm_index - 1) % len(affirmations)
+        st.rerun()
+    if ac2.button("Random"):
+        st.session_state.affirm_index = int(pd.Series(range(len(affirmations))).sample(1).iloc[0])
+        st.rerun()
+    if ac3.button("Next"):
+        st.session_state.affirm_index = (st.session_state.affirm_index + 1) % len(affirmations)
+        st.rerun()
+
+with tab6:
+    st.subheader("Daily Mental Health Tips")
+    tips = [
+        "🧠 Mind & Emotions: Start your day with 3 deep breaths before touching your phone.",
+        "🧠 Mind & Emotions: Write one thing you’re grateful for today.",
+        "🧠 Mind & Emotions: It’s okay to feel not okay—acknowledge your emotions.",
+        "🧠 Mind & Emotions: Stop negative self-talk and replace it with one kind sentence.",
+        "🧠 Mind & Emotions: Cry if you need to—emotional release is healthy.",
+        "🧠 Mind & Emotions: Take a 5-minute silence break during the day.",
+        "🧠 Mind & Emotions: Don’t compare your journey with others.",
+        "🧠 Mind & Emotions: Forgive yourself for not being perfect.",
+        "🧠 Mind & Emotions: Focus on what you can control, not what you can’t.",
+        "🧠 Mind & Emotions: Celebrate small wins—they matter.",
+        "🌿 Body & Routine: Drink a glass of water first thing in the morning.",
+        "🌿 Body & Routine: Get at least 10 minutes of sunlight daily.",
+        "🌿 Body & Routine: Stretch your body for 5 minutes.",
+        "🌿 Body & Routine: Eat one healthy meal mindfully today.",
+        "🌿 Body & Routine: Sleep is self-care—try to sleep before midnight.",
+        "🌿 Body & Routine: Take a short walk to clear your mind.",
+        "🌿 Body & Routine: Reduce caffeine if you feel anxious.",
+        "🌿 Body & Routine: Put your phone away 30 minutes before sleep.",
+        "🌿 Body & Routine: Keep a consistent sleep schedule.",
+        "🌿 Body & Routine: Breathe deeply when your body feels tense.",
+        "💬 Thoughts & Connections: Talk to someone you trust—even a short chat helps.",
+        "💬 Thoughts & Connections: Set boundaries without feeling guilty.",
+        "💬 Thoughts & Connections: Say no when you need to protect your peace.",
+        "💬 Thoughts & Connections: Avoid overthinking—write your thoughts down instead.",
+        "💬 Thoughts & Connections: Limit social media if it affects your mood.",
+        "💬 Thoughts & Connections: Ask for help when you feel overwhelmed.",
+        "💬 Thoughts & Connections: You don’t need to reply to everything immediately.",
+        "💬 Thoughts & Connections: Be kind—to yourself and others.",
+        "💬 Thoughts & Connections: Stop reliving the past; focus on today.",
+        "💬 Thoughts & Connections: Let go of things you can’t change.",
+        "🌈 Growth & Self-Care: Do one thing today that makes you happy.",
+        "🌈 Growth & Self-Care: Read something positive or inspiring.",
+        "🌈 Growth & Self-Care: Listen to calming music.",
+        "🌈 Growth & Self-Care: Create a small daily routine for stability.",
+        "🌈 Growth & Self-Care: Try journaling your feelings for clarity.",
+        "🌈 Growth & Self-Care: Replace “I must” with “I choose to.”",
+        "🌈 Growth & Self-Care: Take breaks—rest improves productivity.",
+        "🌈 Growth & Self-Care: Trust that healing takes time.",
+        "🌈 Growth & Self-Care: Treat yourself with the same care you give others.",
+        "🌈 Growth & Self-Care: Remind yourself: You are doing your best."
+    ]
+    st.info("Here is a mental health tip for you:")
+    st.write(
+        f"""
+        <div class="affirm-card">
+            {tips[st.session_state.tip_index]}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("Get Another Tip"):
+        st.session_state.tip_index = random.randint(0, len(tips) - 1)
+        st.rerun()
