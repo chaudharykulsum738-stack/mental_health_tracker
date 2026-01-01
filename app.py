@@ -7,12 +7,33 @@ import shutil
 import csv
 import streamlit as st
 import pandas as pd
- 
+
+BASE_DIR = Path(__file__).resolve().parent
 DESKTOP = Path(os.path.expanduser("~/Desktop"))
-DESKTOP.mkdir(parents=True, exist_ok=True)
-JSON_PATH = DESKTOP / "entries.json"
-CSV_PATH = DESKTOP / "entries.csv"
-HOBBY_CSV_PATH = DESKTOP / "hobbies.csv"
+
+def pick_writable_dir(candidate_dirs):
+    for d in candidate_dirs:
+        if not d:
+            continue
+        try:
+            d = Path(d)
+            d.mkdir(parents=True, exist_ok=True)
+            probe = d / f".probe_{uuid4().hex}"
+            with probe.open("w", encoding="utf-8") as f:
+                f.write("")
+            try:
+                probe.unlink()
+            except Exception:
+                pass
+            return d
+        except Exception:
+            continue
+    return BASE_DIR
+
+DATA_DIR = pick_writable_dir([os.getenv("MHT_DATA_DIR"), DESKTOP, BASE_DIR])
+JSON_PATH = DATA_DIR / "entries.json"
+CSV_PATH = DATA_DIR / "entries.csv"
+HOBBY_CSV_PATH = DATA_DIR / "hobbies.csv"
 
 def load_entries():
     if CSV_PATH.exists():
@@ -53,6 +74,7 @@ def save_entries(items):
         "stressLevel",
         "anxietyLevel",
         "meditationMinutes",
+        "screenTimeHours",
         "notes",
     ]
     with CSV_PATH.open("w", encoding="utf-8", newline="") as f:
@@ -628,3 +650,4 @@ with tab5:
     if ac3.button("Next"):
         st.session_state.affirm_index = (st.session_state.affirm_index + 1) % len(affirmations)
         st.rerun()
+
