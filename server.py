@@ -106,6 +106,7 @@ def render_layout(title, body):
         <a class='tab' href='/dashboard'>Dashboard</a>
         <a class='tab' href='/hobby'>Hobby</a>
         <a class='tab' href='/affirmations'>Affirmations</a>
+        <a class='tab' href='/tips'>Daily Tips</a>
       </div>
       {body}
     </main>
@@ -653,6 +654,44 @@ def affirm_random():
     session["affirm_index"] = random.randrange(0, len(AFFIRMATIONS))
     return redirect(url_for("affirmations_page"))
 
+TIPS = [
+    "Take a few minutes to practice deep breathing exercises.",
+    "Step outside for a short walk and get some fresh air.",
+    "Write down three things you are grateful for today.",
+    "Limit your screen time before bed to improve sleep quality.",
+    "Drink a glass of water right after waking up.",
+    "Reach out to a friend or family member just to say hello.",
+    "Practice mindfulness while eating your meals.",
+    "Set a small, achievable goal for the day.",
+    "Take a break from social media for a few hours.",
+    "Listen to your favorite calming music or podcast.",
+    "Declutter a small area of your living space.",
+    "Do a quick body scan meditation to release tension.",
+    "Read a few pages of a book you enjoy.",
+    "Write down your thoughts or feelings in a journal.",
+    "Do a random act of kindness for someone else.",
+    "Spend a few minutes stretching your body.",
+    "Visualize a happy place or a positive outcome.",
+    "Forgive yourself for a past mistake.",
+    "Compliment yourself on something you did well.",
+    "Go to bed 30 minutes earlier than usual."
+]
+
+@app.get("/tips")
+def tips_page():
+    import random
+    tip = random.choice(TIPS)
+    body = f"""
+    <section class='card'>
+      <h2>Daily Mental Health Tips</h2>
+      <div class='affirm-card'><p class='affirm-text'>{html_lib.escape(tip)}</p></div>
+      <div class='actions'>
+        <a href='/tips'><button class='primary'>Get Another Tip</button></a>
+      </div>
+    </section>
+    """
+    return render_layout("Daily Tips", body)
+
 @app.get("/api/entries")
 def api_entries_get():
     return jsonify(load_entries())
@@ -899,3 +938,4 @@ def api_stats_weekly():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)
+
