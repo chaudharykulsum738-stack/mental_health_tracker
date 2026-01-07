@@ -5,7 +5,6 @@ import json
 import os
 import shutil
 import csv
-import io
 import streamlit as st
 import pandas as pd
 import random
@@ -33,8 +32,8 @@ def pick_writable_dir(candidate_dirs):
     return BASE_DIR
 
 DATA_DIR = pick_writable_dir([os.getenv("MHT_DATA_DIR"), DESKTOP, BASE_DIR])
+JSON_PATH = DATA_DIR / "entries.json"
 CSV_PATH = DATA_DIR / "entries.csv"
-BACKUP_EXCEL_PATH = DATA_DIR / "entries_backup.xlsx"
 HOBBY_CSV_PATH = DATA_DIR / "hobbies.csv"
 
 def load_entries():
@@ -84,19 +83,6 @@ def save_entries(items):
         writer.writeheader()
         for row in items:
             writer.writerow(row)
-    
-    # Save backup to Excel
-    try:
-        if items:
-            df = pd.DataFrame(items)
-            # Filter to keep only the defined fields
-            df = df[[f for f in fields if f in df.columns]]
-            df.to_excel(BACKUP_EXCEL_PATH, index=False)
-        else:
-            # Create an empty Excel file with headers if no items
-            pd.DataFrame(columns=fields).to_excel(BACKUP_EXCEL_PATH, index=False)
-    except Exception:
-        pass  # Fail silently on backup to not disrupt main flow
 
 # Ensure CSV exists with headers on first run
 if not CSV_PATH.exists():
@@ -418,21 +404,7 @@ with tab2:
             "Notes": e.get("notes", ""),
             "id": e.get("id", ""),
         } for e in sorted_entries]
-
-        # Prepare DataFrame for Excel download (excluding ID)
-        df_export = pd.DataFrame([{k: v for k, v in row.items() if k != "id"} for row in display_rows])
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-            df_export.to_excel(writer, index=False, sheet_name="History")
-        
-        st.download_button(
-            label="Download as Excel",
-            data=buffer.getvalue(),
-            file_name=f"mental_health_history_{date.today()}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-
-        st.dataframe(df_export, width="stretch")
+        st.dataframe([{k: v for k, v in row.items() if k != "id"} for row in display_rows], width="stretch")
         for row in display_rows:
             st.markdown(
                 f"""
@@ -689,46 +661,26 @@ with tab5:
 with tab6:
     st.subheader("Daily Mental Health Tips")
     tips = [
-        "🧠 Mind & Emotions: Start your day with 3 deep breaths before touching your phone.",
-        "🧠 Mind & Emotions: Write one thing you’re grateful for today.",
-        "🧠 Mind & Emotions: It’s okay to feel not okay—acknowledge your emotions.",
-        "🧠 Mind & Emotions: Stop negative self-talk and replace it with one kind sentence.",
-        "🧠 Mind & Emotions: Cry if you need to—emotional release is healthy.",
-        "🧠 Mind & Emotions: Take a 5-minute silence break during the day.",
-        "🧠 Mind & Emotions: Don’t compare your journey with others.",
-        "🧠 Mind & Emotions: Forgive yourself for not being perfect.",
-        "🧠 Mind & Emotions: Focus on what you can control, not what you can’t.",
-        "🧠 Mind & Emotions: Celebrate small wins—they matter.",
-        "🌿 Body & Routine: Drink a glass of water first thing in the morning.",
-        "🌿 Body & Routine: Get at least 10 minutes of sunlight daily.",
-        "🌿 Body & Routine: Stretch your body for 5 minutes.",
-        "🌿 Body & Routine: Eat one healthy meal mindfully today.",
-        "🌿 Body & Routine: Sleep is self-care—try to sleep before midnight.",
-        "🌿 Body & Routine: Take a short walk to clear your mind.",
-        "🌿 Body & Routine: Reduce caffeine if you feel anxious.",
-        "🌿 Body & Routine: Put your phone away 30 minutes before sleep.",
-        "🌿 Body & Routine: Keep a consistent sleep schedule.",
-        "🌿 Body & Routine: Breathe deeply when your body feels tense.",
-        "💬 Thoughts & Connections: Talk to someone you trust—even a short chat helps.",
-        "💬 Thoughts & Connections: Set boundaries without feeling guilty.",
-        "💬 Thoughts & Connections: Say no when you need to protect your peace.",
-        "💬 Thoughts & Connections: Avoid overthinking—write your thoughts down instead.",
-        "💬 Thoughts & Connections: Limit social media if it affects your mood.",
-        "💬 Thoughts & Connections: Ask for help when you feel overwhelmed.",
-        "💬 Thoughts & Connections: You don’t need to reply to everything immediately.",
-        "💬 Thoughts & Connections: Be kind—to yourself and others.",
-        "💬 Thoughts & Connections: Stop reliving the past; focus on today.",
-        "💬 Thoughts & Connections: Let go of things you can’t change.",
-        "🌈 Growth & Self-Care: Do one thing today that makes you happy.",
-        "🌈 Growth & Self-Care: Read something positive or inspiring.",
-        "🌈 Growth & Self-Care: Listen to calming music.",
-        "🌈 Growth & Self-Care: Create a small daily routine for stability.",
-        "🌈 Growth & Self-Care: Try journaling your feelings for clarity.",
-        "🌈 Growth & Self-Care: Replace “I must” with “I choose to.”",
-        "🌈 Growth & Self-Care: Take breaks—rest improves productivity.",
-        "🌈 Growth & Self-Care: Trust that healing takes time.",
-        "🌈 Growth & Self-Care: Treat yourself with the same care you give others.",
-        "🌈 Growth & Self-Care: Remind yourself: You are doing your best."
+        "Take a few minutes to practice deep breathing exercises.",
+        "Step outside for a short walk and get some fresh air.",
+        "Write down three things you are grateful for today.",
+        "Limit your screen time before bed to improve sleep quality.",
+        "Drink a glass of water right after waking up.",
+        "Reach out to a friend or family member just to say hello.",
+        "Practice mindfulness while eating your meals.",
+        "Set a small, achievable goal for the day.",
+        "Take a break from social media for a few hours.",
+        "Listen to your favorite calming music or podcast.",
+        "Declutter a small area of your living space.",
+        "Do a quick body scan meditation to release tension.",
+        "Read a few pages of a book you enjoy.",
+        "Write down your thoughts or feelings in a journal.",
+        "Do a random act of kindness for someone else.",
+        "Spend a few minutes stretching your body.",
+        "Visualize a happy place or a positive outcome.",
+        "Forgive yourself for a past mistake.",
+        "Compliment yourself on something you did well.",
+        "Go to bed 30 minutes earlier than usual."
     ]
     st.info("Here is a mental health tip for you:")
     st.write(
@@ -742,3 +694,4 @@ with tab6:
     if st.button("Get Another Tip"):
         st.session_state.tip_index = random.randint(0, len(tips) - 1)
         st.rerun()
+
