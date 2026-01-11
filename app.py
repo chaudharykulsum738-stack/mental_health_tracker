@@ -127,7 +127,7 @@ def default_values():
         "notes": "",
         "screenTimeMinutes": 0,
     }
-st.set_page_config(page_title="MindCare", page_icon="c:\mental health tracker\logo.png", layout="wide")
+st.set_page_config(page_title="MindCare", page_icon="https://raw.githubusercontent.com/chaudharykulsum738-stack/mental_health_tracker/main/logo.png", layout="wide")
 
 st.markdown(
     """
