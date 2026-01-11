@@ -133,7 +133,6 @@ st.set_page_config(
     page_icon="🧠",
     layout="wide"
 )
-st.sidebar.image("logo.png", width=120)
 BASE_DIR = Path(__file__).parent
 LOGO = BASE_DIR / "logo_design.png"
 
