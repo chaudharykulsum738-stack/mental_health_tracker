@@ -132,7 +132,7 @@ st.set_page_config(
     page_icon="🧠",
     layout="wide"
 )
-logo = Image.open("logo.png")
+logo = image.open("logo.png")
 st.logo(logo)
 st.markdown(
     """
