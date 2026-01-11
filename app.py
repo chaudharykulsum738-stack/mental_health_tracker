@@ -134,10 +134,11 @@ st.set_page_config(
     layout="wide"
 )
 st.sidebar.image("logo.png", width=120)
-st.sidebar.title("MindTrack")
-st.sidebar.caption("Track today. Feel better tomorrow.")
-st.title("MindTrack 🧠")
-st.caption("Track today. Feel better tomorrow.")
+BASE_DIR = Path(__file__).parent
+LOGO = BASE_DIR / "logo_design.png"
+
+st.sidebar.image(str(LOGO), width=120)
+
 
 st.markdown(
     """
