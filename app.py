@@ -134,9 +134,10 @@ st.set_page_config(
     layout="wide"
 )
 st.sidebar.image(
-    "https://raw.githubusercontent.com/USERNAME/REPO/main/logo_design.png",
+    "https://raw.githubusercontent.com/chaudharykulsum738-stack/mental_health_tracker/main/logo.png",
     width=120
 )
+
 
 BASE_DIR = Path(__file__).parent
 LOGO = BASE_DIR / "logo.png"
