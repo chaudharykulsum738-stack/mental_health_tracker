@@ -128,7 +128,17 @@ def default_values():
         "screenTimeMinutes": 0,
     }
 
-st.set_page_config(page_title="Mental Health Tracker", page_icon="🧠", layout="wide")
+st.set_page_config(
+    page_title="MindTrack",
+    page_icon="🧠",
+    layout="wide"
+)
+st.sidebar.image("logo.png", width=120)
+st.sidebar.title("MindTrack")
+st.sidebar.caption("Track today. Feel better tomorrow.")
+st.title("MindTrack 🧠")
+st.caption("Track today. Feel better tomorrow.")
+
 st.markdown(
     """
     <style>
