@@ -127,16 +127,12 @@ def default_values():
         "notes": "",
         "screenTimeMinutes": 0,
     }
+BASE_DIR = Path(__file__).parent
+LOGO = BASE_DIR / "logo.png"
+st.sidebar.image(LOGO, width=120)
+st.sidebar.title("MindTrack")
+st.sidebar.caption("Track today. Feel better tomorrow.")
 
-st.set_page_config(
-    page_title="MindTrack",
-    page_icon="🧠",
-    layout="wide"
-)
-st.sidebar.image(
-    "https://raw.githubusercontent.com/chaudharykulsum738-stack/mental_health_tracker/main/logo.png",
-    width=120
-)
 st.markdown(
     """
     <style>
