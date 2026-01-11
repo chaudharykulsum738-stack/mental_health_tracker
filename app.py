@@ -133,7 +133,6 @@ st.set_page_config(
     page_icon="🧠",
     layout="wide"
 )
-st.sidebar.image("logo.png", width=120)
 st.sidebar.title("MindTrack")
 st.sidebar.caption("Track today. Feel better tomorrow.")
 st.title("MindTrack 🧠")
