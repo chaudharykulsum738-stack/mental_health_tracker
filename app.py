@@ -127,13 +127,8 @@ def default_values():
         "notes": "",
         "screenTimeMinutes": 0,
     }
-st.set_page_config(
-    page_title="MindTrack",
-    page_icon="🧠",
-    layout="wide"
-)
-logo = image.open("logo.png")
-st.logo(logo)
+st.set_page_config(page_title="MindCare", page_icon="c:\mental health tracker\logo.png", layout="wide")
+st.markdown(
 st.markdown(
     """
     <style>
