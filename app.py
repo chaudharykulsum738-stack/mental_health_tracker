@@ -139,7 +139,7 @@ st.sidebar.image(
 )
 
 BASE_DIR = Path(__file__).parent
-LOGO = BASE_DIR / "logo_design.png"
+LOGO = BASE_DIR / "logo.png"
 
 st.sidebar.image(str(logo.png), width=120)
 
